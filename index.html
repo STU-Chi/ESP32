@@ -411,13 +411,28 @@
         attackAnimationId = requestAnimationFrame(startPointerAnimation);
     }
 
-    function triggerPhysicalAttack() {
+function triggerPhysicalAttack() {
         if (gameState !== battleState.ATTACK_SWING) return;
         cancelAnimationFrame(attackAnimationId);
+
+        // === 🌟 網路延遲補償機制 (Latency Compensation) ===
+        // 因為 MQTT 傳輸需要時間，我們將指針往「移動的反方向」倒退幾步，還原你按下的瞬間。
+        const latencyOffset = 6; // 延遲補償值：如果發現指針還是過頭，可以把數字調大(如 8 或 10)
+        attackPointerX = attackPointerX - (latencyOffset * attackPointerDir);
+        
+        // 防止指針倒退超出畫面邊界
+        if (attackPointerX < 0) attackPointerX = 0;
+        if (attackPointerX > 100) attackPointerX = 100;
+        
+        // 更新指針最後停下的視覺位置，讓你看見它 "修正" 回去了
+        document.getElementById("attack-pointer").style.left = attackPointerX + "%";
+        // =================================================
+
         document.getElementById("attack-pointer").classList.add("stopped");
         playSound(1200, 50, 'square', 0.1);
 
-        const greenMin = 42.5, greenMax = 57.5; 
+        // 稍微放寬完美命中的綠色區域 (從原本的 15% 寬度增加到 20% 寬度)
+        const greenMin = 40.0, greenMax = 60.0; 
         const isHit = attackPointerX >= greenMin && attackPointerX <= greenMax;
         const dmg = isHit ? Math.round(40 - Math.abs(50 - attackPointerX)) : 0;
         const accuracy = Math.round(attackPointerX);
