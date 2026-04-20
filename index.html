@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 加密 MQTT 控制面板</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
+        button { padding: 15px 30px; font-size: 20px; cursor: pointer; margin: 10px; }
+        .status { font-size: 24px; font-weight: bold; color: #333; margin-top: 20px; }
+    </style>
+</head>
+<body>
+
+    <h1>ESP32 遠端控制 (WSS 加密)</h1>
+    
+    <div>
+        <h3>控制 ESP32 LED</h3>
+        <button onclick="sendLedCommand('ON')">打開 LED</button>
+        <button onclick="sendLedCommand('OFF')">關閉 LED</button>
+    </div>
+
+    <div>
+        <h3>ESP32 實體按鈕狀態</h3>
+        <div class="status" id="buttonStatus">等待狀態更新...</div>
+    </div>
+
+    <script>
+        // MQTT 伺服器設定 (使用 EMQX 公共伺服器)
+        const broker = "broker.emqx.io";
+        const port = 8084; // 8084 是 WSS (WebSocket Secure) 加密通訊埠
+        const clientId = "web_client_" + Math.random().toString(16).substr(2, 8);
+        
+        // 定義通訊主題 (Topic)
+        const topicLedControl = "myhome/esp32/led";
+        const topicButtonStatus = "myhome/esp32/button";
+
+        // 建立 MQTT 客戶端
+        const client = new Paho.MQTT.Client(broker, port, clientId);
+
+        client.onConnectionLost = onConnectionLost;
+        client.onMessageArrived = onMessageArrived;
+
+        // 連線設定 (啟用 SSL)
+        const options = {
+            useSSL: true, // 關鍵：啟用 WSS 加密連線
+            timeout: 3,
+            onSuccess: onConnect,
+            onFailure: onFailure
+        };
+
+        console.log("正在連線到 MQTT 伺服器...");
+        client.connect(options);
+
+        function onConnect() {
+            console.log("MQTT 連線成功！(已加密)");
+            // 訂閱 ESP32 按鈕狀態主題
+            client.subscribe(topicButtonStatus);
+        }
+
+        function onFailure(message) {
+            console.error("連線失敗: " + message.errorMessage);
+        }
+
+        function onConnectionLost(responseObject) {
+            if (responseObject.errorCode !== 0) {
+                console.warn("連線中斷: " + responseObject.errorMessage);
+            }
+        }
+
+        // 接收到 MQTT 訊息時觸發
+        function onMessageArrived(message) {
+            if (message.destinationName === topicButtonStatus) {
+                document.getElementById("buttonStatus").innerText = "按鈕狀態: " + message.payloadString;
+            }
+        }
+
+        // 發送控制 LED 的指令
+        function sendLedCommand(state) {
+            if (client.isConnected()) {
+                const message = new Paho.MQTT.Message(state);
+                message.destinationName = topicLedControl;
+                client.send(message);
+                console.log("已發送指令: " + state);
+            } else {
+                alert("尚未連線到 MQTT 伺服器");
+            }
+        }
+    </script>
+</body>
+</html>
