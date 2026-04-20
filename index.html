@@ -137,6 +137,22 @@
             animation-iteration-count: 1;
         }
 
+                /* 粒子樣式 */
+        .particle {
+            position: absolute;
+            background-color: var(--text-color);
+            width: 4px;
+            height: 4px;
+            pointer-events: none;
+            z-index: 100;
+        }
+        
+        /* 讓貓咪消失的動畫 */
+        .pixel-fade {
+            transition: opacity 0.5s ease-out;
+            opacity: 0 !important;
+        }
+
         .enemy-hp-container { display: flex; align-items: center; margin-top: 15px; gap: 15px; font-size: 1.5rem; }
         .enemy-hp-bar-outer { width: 150px; height: 15px; background-color: var(--damage-color); border: 2px solid #fff;}
         .enemy-hp-bar-inner { width: 100%; height: 100%; background-color: var(--hp-color); transition: width 0.4s ease-out; }
@@ -453,27 +469,107 @@
         }, 600); 
     }
     
-    function handleAttackResolutionHit(dmg, accuracy) {
-        gameState = battleState.MENU_ACTION;
-        enemyHp -= dmg; if(enemyHp < 0) enemyHp = 0;
-        let hpPercent = (enemyHp / enemyMaxHp) * 100;
-        document.getElementById("enemy-hp-bar").style.width = hpPercent + "%";
-        
-        // ★ 此時更換貓臉為 hurt，並更新對話為 Ouch!喵
-        updateCat("hurt"); 
-        
-        showDialog(`* 成功扣除 ${dmg} 傷害。<br>* 對野貓造成了有效打擊。`);
-        
-        setTimeout(() => {
-            if (enemyHp === 0) {
-                showDialog("* 野貓被擊敗了喵！喵嗚嗚嗚。");
-                updateCat(" shock"); // shock face
-                setTimeout(resetGame, 4000); 
-            } else {
-                resetToIdle();
-            }
-        }, 2000);
+// --- 1. Discord Webhook 設定 ---
+// 請在這裡填入你的 Discord Webhook 網址
+const DISCORD_WEBHOOK_URL = "你的_DISCORD_WEBHOOK_URL_網址";
+
+function sendDiscordMessage(msg) {
+    if (!DISCORD_WEBHOOK_URL || DISCORD_WEBHOOK_URL.includes("你的_")) {
+        console.warn("Discord Webhook URL 未設定");
+        return;
     }
+
+    const payload = {
+        content: "【戰鬥結束】",
+        embeds: [{
+            title: "野貓的話",
+            description: msg,
+            color: 15158332 // 紅色
+        }]
+    };
+
+    fetch(DISCORD_WEBHOOK_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+    }).catch(err => console.error("Discord 發送失敗:", err));
+}
+
+// --- 2. 粒子消失特效函數 ---
+function createParticles(element) {
+    const rect = element.getBoundingClientRect();
+    const count = 30; // 粒子數量
+    
+    for (let i = 0; i < count; i++) {
+        const particle = document.createElement('div');
+        particle.className = 'particle';
+        document.body.appendChild(particle);
+
+        // 初始位置設定在貓咪中央
+        const startX = rect.left + rect.width / 2;
+        const startY = rect.top + rect.height / 2;
+
+        // 隨機噴散方向與距離
+        const angle = Math.random() * Math.PI * 2;
+        const velocity = Math.random() * 5 + 2;
+        const destinationX = (Math.random() - 0.5) * 200;
+        const destinationY = (Math.random() - 0.5) * 200;
+
+        particle.style.left = `${startX}px`;
+        particle.style.top = `${startY}px`;
+
+        // 執行動畫
+        const animation = particle.animate([
+            { transform: 'translate(0, 0)', opacity: 1 },
+            { transform: `translate(${destinationX}px, ${destinationY}px)`, opacity: 0 }
+        ], {
+            duration: 800 + Math.random() * 400,
+            easing: 'cubic-bezier(0, .9, .57, 1)',
+            fill: 'forwards'
+        });
+
+        animation.onfinish = () => particle.remove();
+    }
+}
+
+// --- 3. 修改後的戰鬥結算邏輯 ---
+function handleAttackResolutionHit(dmg, accuracy) {
+    gameState = battleState.MENU_ACTION;
+    enemyHp -= dmg; if(enemyHp < 0) enemyHp = 0;
+    let hpPercent = (enemyHp / enemyMaxHp) * 100;
+    document.getElementById("enemy-hp-bar").style.width = hpPercent + "%";
+    
+    updateCat("hurt"); 
+    showDialog(`* 成功扣除 ${dmg} 傷害。<br>* 對野貓造成了有效打擊。`);
+    
+    setTimeout(() => {
+        if (enemyHp === 0) {
+            // --- 觸發擊敗事件 ---
+            const catCanvas = document.getElementById("cat-canvas");
+            const speechBubble = document.getElementById("cat-speech-text");
+            
+            // 1. 貓咪變震驚臉並消失
+            updateCat("shock");
+            createParticles(catCanvas);
+            catCanvas.classList.add("pixel-fade");
+            speechBubble.classList.add("pixel-fade");
+
+            showDialog("* 野貓被擊敗了喵！喵嗚嗚嗚。");
+            
+            // 2. 發送 Discord 訊息
+            sendDiscordMessage("喵嗚... 你真的下手了喵... 我會化成像素回來的喵...");
+
+            // 3. 延遲後重置
+            setTimeout(() => {
+                catCanvas.classList.remove("pixel-fade");
+                speechBubble.classList.remove("pixel-fade");
+                resetGame();
+            }, 4000); 
+        } else {
+            resetToIdle();
+        }
+    }, 2000);
+}
 
     function handleAttackResolutionMiss() {
         gameState = battleState.MENU_ACTION;
