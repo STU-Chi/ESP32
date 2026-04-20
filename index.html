@@ -59,12 +59,13 @@
     
     const topicLed = `morsegame/${ROOM_ID}/led`;
     const topicBtn = `morsegame/${ROOM_ID}/button`;
+    const topicStatus = `morsegame/${ROOM_ID}/status`; // ★ 新增狀態頻道
     
     let client, sequence = [], currentIndex = 0, level = 1;
     let gameState = "IDLE"; 
     let pressStartTime = 0;
 
-    // Web Audio API
+    // Web Audio API (音效設定保持不變)
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     let osc = null;
 
@@ -89,15 +90,41 @@
         }
     }
 
-    // MQTT 連線
+    // MQTT 連線與訊息分發
     client = new Paho.MQTT.Client("broker.emqx.io", 8084, "Web_" + Math.random().toString(16).substr(2,5));
-    client.onMessageArrived = (m) => handleInput(m.payloadString);
+    
+    // ★ 修改：統一處理收到的所有 MQTT 訊息
+    client.onMessageArrived = (m) => {
+        let topic = m.destinationName;
+        let payload = m.payloadString;
+
+        if (topic === topicStatus) {
+            // 處理 ESP32 上下線狀態
+            if (payload === "ONLINE") {
+                document.getElementById("status-dot").className = "status-dot online";
+                document.getElementById("status-text").innerText = "ESP32 已連線";
+                document.getElementById("start-btn").disabled = false;
+                document.getElementById("start-btn").innerText = "進入第一關";
+            } else if (payload === "OFFLINE") {
+                document.getElementById("status-dot").className = "status-dot offline";
+                document.getElementById("status-text").innerText = "ESP32 離線中 / 未插電";
+                document.getElementById("start-btn").disabled = true;
+                document.getElementById("start-btn").innerText = "等待 ESP32";
+            }
+        } else if (topic === topicBtn) {
+            // 處理遊戲按鈕
+            handleInput(payload);
+        }
+    };
+
     client.connect({ useSSL: true, onSuccess: () => {
         client.subscribe(topicBtn);
-        document.getElementById("status-dot").className = "status-dot online";
-        document.getElementById("status-text").innerText = "已連線";
-        document.getElementById("start-btn").disabled = false;
-        document.getElementById("start-btn").innerText = "進入第一關";
+        client.subscribe(topicStatus); // ★ 訂閱狀態頻道
+        
+        // ★ 剛連上伺服器時，先顯示等待硬體，而不是直接顯示已連線
+        document.getElementById("status-text").innerText = "尋找 ESP32 中...";
+        document.getElementById("start-btn").disabled = true;
+        document.getElementById("start-btn").innerText = "等待 ESP32";
     }});
 
     function sendLed(s) {
@@ -105,7 +132,7 @@
         m.destinationName = topicLed; client.send(m);
     }
 
-    // 遊戲邏輯
+    // 遊戲邏輯 (保持不變)
     function startGame() {
         if(audioCtx.state === 'suspended') audioCtx.resume();
         level = 1;
@@ -121,7 +148,7 @@
         
         sequence = []; currentIndex = 0;
         let trackHtml = "";
-        for(let i=0; i < level + 1; i++) { // 題目長度隨關卡增加
+        for(let i=0; i < level + 1; i++) { 
             let isLong = Math.random() > 0.5 ? 1 : 0;
             sequence.push(isLong);
             trackHtml += `<div class="node ${isLong?'long':'short'}" id="n-${i}"></div>`;
@@ -177,10 +204,10 @@
         gameState = "IDLE";
         showScreen("screen-result");
         document.getElementById("result-title").innerText = success ? "🎉 挑戰成功！" : "❌ 挑戰失敗";
-        document.getElementById("result-score").innerText = `最終進度：第 ${level-1} / 5 關`;
+        document.getElementById("result-score").innerText = `最終進度：第 ${level > 5 ? 5 : level-1} / 5 關`;
         
         if(success) {
-            sendLed(true); setTimeout(()=>sendLed(false), 1000); // 成功長亮
+            sendLed(true); setTimeout(()=>sendLed(false), 1000); 
             sendToDiscord();
         }
     }
