@@ -3,90 +3,263 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ESP32 加密 MQTT 控制面板</title>
+    <title>摩斯節奏 - 自動配對版</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
     <style>
-        body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
-        button { padding: 15px 30px; font-size: 20px; cursor: pointer; margin: 10px; }
-        .status { font-size: 24px; font-weight: bold; color: #333; margin-top: 20px; }
+        body { font-family: 'Segoe UI', sans-serif; background-color: #1e1e2f; color: white; text-align: center; margin: 0; padding: 20px; }
+        .container { max-width: 600px; margin: 0 auto; background: #2a2a40; padding: 30px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        h1 { color: #00d2ff; }
+        .status-bar { display: flex; justify-content: space-between; margin-bottom: 20px; color: #aaa; font-weight: bold;}
+        
+        /* 雷達設備清單設計 */
+        #radarScreen { padding: 20px; background: #1a1a2e; border-radius: 10px; margin-bottom: 20px; border: 2px dashed #00d2ff; }
+        .device-btn { display: block; width: 100%; background: #2ecc71; color: white; border: none; padding: 15px; font-size: 1.2rem; border-radius: 8px; cursor: pointer; margin-top: 10px; transition: 0.2s; font-weight: bold;}
+        .device-btn:hover { background: #27ae60; }
+        
+        .progress-container { display: flex; justify-content: center; gap: 15px; margin: 40px 0; min-height: 50px; align-items: center; }
+        .node { background-color: #444; transition: all 0.1s; }
+        .node.short { width: 30px; height: 30px; border-radius: 50%; } 
+        .node.long { width: 80px; height: 30px; border-radius: 15px; } 
+        .node.playing { background-color: #f39c12; box-shadow: 0 0 15px #f39c12; transform: scale(1.1); }
+        .node.correct { background-color: #2ecc71; box-shadow: 0 0 15px #2ecc71; }
+        .node.wrong { background-color: #e74c3c; box-shadow: 0 0 15px #e74c3c; }
+        .node.active-input { background-color: #3498db; box-shadow: 0 0 15px #3498db; }
+
+        #msgBoard { font-size: 1.5rem; margin: 20px 0; height: 30px; color: #f1c40f; }
     </style>
 </head>
 <body>
 
-    <h1>ESP32 遠端控制 (WSS 加密)</h1>
+<div class="container">
+    <h1>📡 摩斯節奏記憶</h1>
     
-    <div>
-        <h3>控制 ESP32 LED</h3>
-        <button onclick="sendLedCommand('ON')">打開 LED</button>
-        <button onclick="sendLedCommand('OFF')">關閉 LED</button>
+    <div id="radarScreen">
+        <h3 style="color: #00d2ff; margin-top: 0;">📡 尋找附近的遊戲機...</h3>
+        <div id="deviceList">等待設備插電中...</div>
     </div>
 
-    <div>
-        <h3>ESP32 實體按鈕狀態</h3>
-        <div class="status" id="buttonStatus">等待狀態更新...</div>
+    <div id="gameUI" style="display: none;">
+        <div class="status-bar">
+            <span id="connectedDevice">已連線: 無</span>
+            <span id="levelDisplay">關卡: 1</span>
+        </div>
+        <div id="msgBoard">準備開始...</div>
+        <div class="progress-container" id="progressTrack"></div>
     </div>
+</div>
 
-    <script>
-        // MQTT 伺服器設定 (使用 EMQX 公共伺服器)
-        const broker = "broker.emqx.io";
-        const port = 8084; // 8084 是 WSS (WebSocket Secure) 加密通訊埠
-        const clientId = "web_client_" + Math.random().toString(16).substr(2, 8);
+<script>
+    // === 設定區 ===
+    const discordWebhookUrl = "YOUR_DISCORD_WEBHOOK_URL"; 
+    const broker = "broker.emqx.io";
+    const port = 8084;
+    const topicLobby = "morsegame/lobby";
+    
+    let topicLed, topicBtn, topicCtrl;
+    let client, connectedRoomId;
+    let foundDevices = new Set();
+    
+    // Web Audio API 初始化
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    let liveOscillator = null;
+
+    // === 音效函式 ===
+    function playTone(duration) {
+        if(audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        osc.type = 'sine'; osc.frequency.value = 600; 
+        gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime); 
+        osc.connect(gainNode); gainNode.connect(audioCtx.destination);
+        osc.start(); setTimeout(() => osc.stop(), duration);
+    }
+    function startLiveTone() {
+        if(audioCtx.state === 'suspended') audioCtx.resume();
+        if(liveOscillator) return;
+        liveOscillator = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        liveOscillator.type = 'sine'; liveOscillator.frequency.value = 600;
+        gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        liveOscillator.connect(gainNode); gainNode.connect(audioCtx.destination);
+        liveOscillator.start();
+    }
+    function stopLiveTone() {
+        if(liveOscillator) { liveOscillator.stop(); liveOscillator = null; }
+    }
+
+    // === MQTT 雷達與連線邏輯 ===
+    const clientId = "WebClient_" + Math.random().toString(16).substr(2, 8);
+    client = new Paho.MQTT.Client(broker, port, clientId);
+    
+    client.onConnectionLost = () => { alert("網路斷線，請重整網頁"); };
+    client.onMessageArrived = handleMqttMessage;
+
+    // 網頁載入時自動連線 MQTT 並訂閱大廳
+    client.connect({
+        useSSL: true,
+        onSuccess: () => { client.subscribe(topicLobby); }
+    });
+
+    // 處理收到的訊息 (包含大廳發現與遊戲按鈕)
+    function handleMqttMessage(message) {
+        // 1. 處理大廳廣播 (發現設備)
+        if (message.destinationName === topicLobby) {
+            let devId = message.payloadString;
+            if (!foundDevices.has(devId)) {
+                foundDevices.add(devId);
+                let listDiv = document.getElementById("deviceList");
+                if (foundDevices.size === 1) listDiv.innerHTML = ""; // 清空等待文字
+                
+                // 產生連線按鈕
+                let btn = document.createElement("button");
+                btn.className = "device-btn";
+                btn.innerText = `🎮 連線至 ${devId}`;
+                btn.onclick = () => pairDevice(devId);
+                listDiv.appendChild(btn);
+            }
+            return;
+        }
+
+        // 2. 處理遊戲中的按鈕訊號
+        if (message.destinationName === topicBtn && gameState === "WAITING_INPUT") {
+            let action = message.payloadString;
+            let currentNode = document.getElementById("progressTrack").children[currentInputIndex];
+
+            if (action === "DOWN") {
+                pressStartTime = Date.now();
+                startLiveTone();
+                currentNode.classList.add("active-input");
+            } else if (action === "UP") {
+                let duration = Date.now() - pressStartTime;
+                stopLiveTone();
+                currentNode.classList.remove("active-input");
+                
+                let isLong = duration > TOLERANCE;
+                if (isLong === (sequence[currentInputIndex] === 1)) {
+                    currentNode.classList.add("correct");
+                    currentInputIndex++;
+                    if (currentInputIndex === sequence.length) levelComplete();
+                } else {
+                    currentNode.classList.add("wrong");
+                    gameOver();
+                }
+            }
+        }
+    }
+
+    // 點擊雷達上的設備進行配對鎖定
+    function pairDevice(devId) {
+        if(audioCtx.state === 'suspended') audioCtx.resume(); // 解鎖音效限制
         
-        // 定義通訊主題 (Topic)
-        const topicLedControl = "myhome/esp32/led";
-        const topicButtonStatus = "myhome/esp32/button";
+        connectedRoomId = devId;
+        topicLed = `morsegame/${devId}/led`;
+        topicBtn = `morsegame/${devId}/button`;
+        topicCtrl = `morsegame/${devId}/ctrl`;
 
-        // 建立 MQTT 客戶端
-        const client = new Paho.MQTT.Client(broker, port, clientId);
+        // 鎖定該硬體，讓它退出大廳
+        let msg = new Paho.MQTT.Message("LOCK");
+        msg.destinationName = topicCtrl;
+        client.send(msg);
 
-        client.onConnectionLost = onConnectionLost;
-        client.onMessageArrived = onMessageArrived;
+        // 切換訂閱主題
+        client.unsubscribe(topicLobby);
+        client.subscribe(topicBtn);
 
-        // 連線設定 (啟用 SSL)
-        const options = {
-            useSSL: true, // 關鍵：啟用 WSS 加密連線
-            timeout: 3,
-            onSuccess: onConnect,
-            onFailure: onFailure
-        };
+        // 切換介面
+        document.getElementById("radarScreen").style.display = "none";
+        document.getElementById("gameUI").style.display = "block";
+        document.getElementById("connectedDevice").innerText = `已連線: ${devId}`;
+        
+        // 延遲一下確保硬體鎖定後直接開始遊戲
+        setTimeout(startLevel, 1000);
+    }
 
-        console.log("正在連線到 MQTT 伺服器...");
-        client.connect(options);
+    function setEspLed(state) {
+        if(client.isConnected()) {
+            let msg = new Paho.MQTT.Message(state ? "1" : "0");
+            msg.destinationName = topicLed;
+            client.send(msg);
+        }
+    }
 
-        function onConnect() {
-            console.log("MQTT 連線成功！(已加密)");
-            // 訂閱 ESP32 按鈕狀態主題
-            client.subscribe(topicButtonStatus);
+    // === 遊戲核心邏輯 ===
+    const TIME_SHORT = 200, TIME_LONG = 600, TOLERANCE = 400;
+    let sequence = [], currentInputIndex = 0, level = 1, gameState = "IDLE", pressStartTime = 0;
+
+    async function startLevel() {
+        document.getElementById("levelDisplay").innerText = `關卡: ${level}`;
+        document.getElementById("msgBoard").innerText = "注意看 LED 與聆聽節奏...";
+        document.getElementById("msgBoard").style.color = "#f1c40f";
+        
+        sequence = []; currentInputIndex = 0;
+        let trackHtml = "";
+        for(let i=0; i < level + 2; i++) {
+            let isLong = Math.random() > 0.5 ? 1 : 0;
+            sequence.push(isLong);
+            trackHtml += `<div class="${isLong ? 'node long' : 'node short'}"></div>`;
+        }
+        document.getElementById("progressTrack").innerHTML = trackHtml;
+
+        gameState = "PLAYING";
+        await sleep(1000);
+        
+        let nodes = document.getElementById("progressTrack").children;
+        for(let i=0; i<sequence.length; i++) {
+            let duration = sequence[i] === 1 ? TIME_LONG : TIME_SHORT;
+            setEspLed(true); playTone(duration); nodes[i].classList.add("playing");
+            await sleep(duration);
+            setEspLed(false); nodes[i].classList.remove("playing");
+            await sleep(300); 
         }
 
-        function onFailure(message) {
-            console.error("連線失敗: " + message.errorMessage);
-        }
+        gameState = "WAITING_INPUT";
+        document.getElementById("msgBoard").innerText = "換你了！重現節奏！";
+        document.getElementById("msgBoard").style.color = "#00d2ff";
+        
+        // 每次遊戲互動時，順便發送 LOCK 刷新硬體的防呆計時器
+        let msg = new Paho.MQTT.Message("LOCK");
+        msg.destinationName = topicCtrl;
+        client.send(msg);
+    }
 
-        function onConnectionLost(responseObject) {
-            if (responseObject.errorCode !== 0) {
-                console.warn("連線中斷: " + responseObject.errorMessage);
-            }
+    async function levelComplete() {
+        gameState = "IDLE";
+        document.getElementById("msgBoard").innerText = "過關！進入下一關！";
+        document.getElementById("msgBoard").style.color = "#2ecc71";
+        for(let i=0; i<3; i++) {
+            setEspLed(true); playTone(50); await sleep(100);
+            setEspLed(false); await sleep(100);
         }
+        level++;
+        await sleep(1000);
+        startLevel();
+    }
 
-        // 接收到 MQTT 訊息時觸發
-        function onMessageArrived(message) {
-            if (message.destinationName === topicButtonStatus) {
-                document.getElementById("buttonStatus").innerText = "按鈕狀態: " + message.payloadString;
-            }
+    function gameOver() {
+        gameState = "IDLE";
+        document.getElementById("msgBoard").innerText = `遊戲結束！止步於關卡：${level}`;
+        document.getElementById("msgBoard").style.color = "#e74c3c";
+        
+        setEspLed(true); playTone(800);
+        setTimeout(() => {
+            setEspLed(false);
+            // 失敗後將設備解鎖，退回首頁雷達畫面
+            let msg = new Paho.MQTT.Message("UNLOCK");
+            msg.destinationName = topicCtrl;
+            client.send(msg);
+            setTimeout(() => location.reload(), 3000); // 3秒後重整網頁重新尋找
+        }, 2000);
+        
+        if (discordWebhookUrl !== "https://discord.com/api/webhooks/1490915002364985415/IIiu_o6Y5k7sfA5vs3FbsXxyTk1clSHrBpeNSVv2FcmhTXARqtsc3npq3PXpIRmVTz96") {
+            fetch(discordWebhookUrl, {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ content: `🚨 **摩斯節奏戰報** 🚨\n玩家突破了 **${level}** 關！` })
+            });
         }
+    }
 
-        // 發送控制 LED 的指令
-        function sendLedCommand(state) {
-            if (client.isConnected()) {
-                const message = new Paho.MQTT.Message(state);
-                message.destinationName = topicLedControl;
-                client.send(message);
-                console.log("已發送指令: " + state);
-            } else {
-                alert("尚未連線到 MQTT 伺服器");
-            }
-        }
-    </script>
+    function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+</script>
+
 </body>
 </html>
