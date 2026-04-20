@@ -416,6 +416,34 @@
 
     function startAttackSequence() {
         if(gameState !== battleState.IDLE) return;
+
+        // --- 新增：檢查 ESP32 是否在線 ---
+        const isOnline = document.getElementById("online-dot").classList.contains("active");
+
+        if (!isOnline) {
+            // 進入選單動作狀態（防止重複點擊）
+            gameState = battleState.MENU_ACTION;
+            
+            // 讓貓咪露出笑臉（happy）
+            updateCat("happy"); 
+            
+            // 貓咪專屬台詞
+            document.getElementById("cat-speech-text").innerText = "嘿嘿，沒連上 ESP32 攻擊不到我喵！";
+            
+            // 下方對話框提示
+            showDialog("* 你揮動了武器，但因為 ESP32 沒連線，攻擊完全無效！<br>* 野貓露出了得意的笑容。喵。");
+
+            // 2 秒後恢復正常狀態
+            setTimeout(() => {
+                updateCat("normal");
+                resetToIdle();
+            }, 2500);
+            
+            return; // 終止函數，不讓指針跑出來
+        }
+        // --- 檢查結束 ---
+
+        // 如果在線，才執行原本的攻擊邏輯
         gameState = battleState.ATTACK_SWING;
         document.getElementById("btn-fight").classList.remove("active");
         document.getElementById("box-text-content").style.display = "none";
@@ -570,7 +598,7 @@ function handleAttackResolutionHit(dmg, accuracy) {
             showDialog("* 野貓被擊敗了喵！喵嗚嗚嗚。");
             
             // 2. 發送 Discord 訊息
-            sendDiscordMessage("喵嗚... 你真的下手了喵... 我會化成像素回來的喵...");
+            sendDiscordMessage("喵嗚... 你真的下手了喵... 我會回來的喵...");
 
             // 3. 延遲後重置
             setTimeout(() => {
@@ -636,7 +664,7 @@ function handleAttackResolutionHit(dmg, accuracy) {
         enemyHp = enemyMaxHp;
         document.getElementById("enemy-hp-bar").style.width = "100%";
         resetToIdle();
-        showDialog("* 一隻野貓擋住了去路！<br>點擊 FIGHT 後按 ESP32 按鈕攻擊。喵。");
+        showDialog("* 一隻野貓擋住了去路！<br>點擊 FIGHT 後按 ESP32上的按鈕攻擊。喵。");
     }
 </script>
 
