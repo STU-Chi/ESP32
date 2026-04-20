@@ -376,13 +376,25 @@
     }
 
     function handleMqttMessage(topic, payload) {
-        if (topic === topicStatus) {
-            if (payload === "ONLINE" || payload === "PING") { lastPingTime = Date.now(); setOnline(); }
-            else if (payload === "OFFLINE") setOffline();
-        } else if (topic === topicBtn && payload === "DOWN") {
-            triggerPhysicalAttack();
+            if (topic === topicStatus) {
+                if (payload === "ONLINE" || payload === "PING") { 
+                    lastPingTime = Date.now(); 
+                    setOnline(); 
+                } else if (payload === "OFFLINE") {
+                    setOffline();
+                }
+            } 
+            // --- 修改這裡：判斷按鈕按下後的行為 ---
+        else if (topic === topicBtn && payload === "DOWN") {
+            if (gameState === battleState.IDLE) {
+                startAttackSequence();
+            } else if (gameState === battleState.ATTACK_SWING) {
+                triggerPhysicalAttack();
+            } else if (gameState === battleState.MENU_ACTION) {
+                // 如果正在看對話（例如 ACT 完後），按一下按鈕可以加速回到 IDLE
+                // 這部分取決於你是否有寫跳過對話的邏輯，目前你的 resetToIdle 是用 setTimeout 觸發的
+            }
         }
-    }
 
     function showDialog(text) {
         document.getElementById("box-text-content").style.display = "block";
