@@ -1,151 +1,97 @@
-<!DOCTYPE html>
-<html lang="zh-TW">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>摩斯節奏記憶挑戰</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
-    <style>
-        :root { --primary: #00d2ff; --bg: #1e1e2f; --card: #2a2a40; }
-        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: white; text-align: center; margin: 0; padding: 20px; }
-        .container { max-width: 500px; margin: 0 auto; background: var(--card); padding: 30px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        .hidden { display: none; }
-        
-        /* 狀態顯示 */
-        .status-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; margin-right: 5px; }
-        .online { background: #2ecc71; box-shadow: 0 0 10px #2ecc71; }
-        .offline { background: #e74c3c; }
-
-        /* 進度節點 */
-        .node { background: #444; transition: 0.1s; display: inline-block; margin: 5px; }
-        .node.short { width: 20px; height: 20px; border-radius: 50%; }
-        .node.long { width: 50px; height: 20px; border-radius: 10px; }
-        .node.active-input { background: var(--primary); box-shadow: 0 0 15px var(--primary); }
-        .node.correct { background: #2ecc71; }
-        .node.wrong { background: #e74c3c; }
-
-        .btn { background: var(--primary); color: #1e1e2f; border: none; padding: 15px 40px; font-size: 1.2rem; border-radius: 10px; cursor: pointer; font-weight: bold; margin-top: 20px; }
-        .btn:disabled { background: #555; cursor: not-allowed; }
-        
-        #msg { height: 40px; margin: 20px 0; font-size: 1.2rem; color: #f1c40f; }
-    </style>
-</head>
-<body>
-
-<div class="container">
-    <div id="screen-start">
-        <h1>📡 摩斯記憶挑戰</h1>
-        <p><span id="status-dot" class="status-dot offline"></span> ESP32 狀態: <span id="status-text">連線中...</span></p>
-        <button id="start-btn" class="btn" onclick="startGame()" disabled>準備中</button>
-    </div>
-
-    <div id="screen-game" class="hidden">
-        <h2 id="level-title">第 1 / 5 關</h2>
-        <div id="msg">注意聽節奏...</div>
-        <div id="track" style="min-height: 60px;"></div>
-    </div>
-
-    <div id="screen-result" class="hidden">
-        <h1 id="result-title">挑戰成功！</h1>
-        <p id="result-score">最終得分：5 / 5</p>
-        <button class="btn" onclick="resetToStart()">再玩一次</button>
-    </div>
-</div>
-
 <script>
-    // === 設定 ===
-    const ROOM_ID = "STU-s22115103"; // 必須與 ESP32 一致
+    const ROOM_ID = "STU-s22115103";
     const DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1490915002364985415/IIiu_o6Y5k7sfA5vs3FbsXxyTk1clSHrBpeNSVv2FcmhTXARqtsc3npq3PXpIRmVTz96";
     
     const topicLed = `morsegame/${ROOM_ID}/led`;
     const topicBtn = `morsegame/${ROOM_ID}/button`;
-    const topicStatus = `morsegame/${ROOM_ID}/status`; // ★ 新增狀態頻道
+    const topicStatus = `morsegame/${ROOM_ID}/status`;
     
     let client, sequence = [], currentIndex = 0, level = 1;
     let gameState = "IDLE"; 
-    let pressStartTime = 0;
+    
+    // 心跳監控
+    let lastPingTime = 0;
+    setInterval(() => {
+        // 如果超過 5 秒沒收到 ESP32 的訊號，強制轉為離線狀態
+        if (Date.now() - lastPingTime > 5000 && lastPingTime !== 0) {
+            setEspOffline();
+        }
+    }, 1000);
 
-    // Web Audio API (音效設定保持不變)
+    // Web Audio API
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     let osc = null;
-
     function playTone(dur) {
-        const o = audioCtx.createOscillator();
-        const g = audioCtx.createGain();
+        const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
         o.frequency.value = 600; o.connect(g); g.connect(audioCtx.destination);
-        g.gain.setValueAtTime(0.1, audioCtx.currentTime);
-        o.start(); setTimeout(() => o.stop(), dur);
+        g.gain.setValueAtTime(0.1, audioCtx.currentTime); o.start(); setTimeout(() => o.stop(), dur);
     }
-
     function toggleLiveTone(on) {
         if(on) {
             if(osc) return;
-            osc = audioCtx.createOscillator();
-            const g = audioCtx.createGain();
+            osc = audioCtx.createOscillator(); const g = audioCtx.createGain();
             osc.frequency.value = 600; osc.connect(g); g.connect(audioCtx.destination);
-            g.gain.setValueAtTime(0.1, audioCtx.currentTime);
-            osc.start();
-        } else {
-            if(osc) { osc.stop(); osc = null; }
-        }
+            g.gain.setValueAtTime(0.1, audioCtx.currentTime); osc.start();
+        } else { if(osc) { osc.stop(); osc = null; } }
     }
 
-    // MQTT 連線與訊息分發
+    // MQTT 連線
     client = new Paho.MQTT.Client("broker.emqx.io", 8084, "Web_" + Math.random().toString(16).substr(2,5));
     
-    // ★ 修改：統一處理收到的所有 MQTT 訊息
     client.onMessageArrived = (m) => {
         let topic = m.destinationName;
         let payload = m.payloadString;
 
         if (topic === topicStatus) {
-            // 處理 ESP32 上下線狀態
-            if (payload === "ONLINE") {
-                document.getElementById("status-dot").className = "status-dot online";
-                document.getElementById("status-text").innerText = "ESP32 已連線";
-                document.getElementById("start-btn").disabled = false;
-                document.getElementById("start-btn").innerText = "進入第一關";
+            if (payload === "ONLINE" || payload === "PING") {
+                lastPingTime = Date.now();
+                setEspOnline();
             } else if (payload === "OFFLINE") {
-                document.getElementById("status-dot").className = "status-dot offline";
-                document.getElementById("status-text").innerText = "ESP32 離線中 / 未插電";
-                document.getElementById("start-btn").disabled = true;
-                document.getElementById("start-btn").innerText = "等待 ESP32";
+                setEspOffline();
             }
         } else if (topic === topicBtn) {
-            // 處理遊戲按鈕
             handleInput(payload);
         }
     };
 
     client.connect({ useSSL: true, onSuccess: () => {
         client.subscribe(topicBtn);
-        client.subscribe(topicStatus); // ★ 訂閱狀態頻道
-        
-        // ★ 剛連上伺服器時，先顯示等待硬體，而不是直接顯示已連線
-        document.getElementById("status-text").innerText = "尋找 ESP32 中...";
+        client.subscribe(topicStatus);
+        setEspOffline(); // 初始設為離線，等待 ESP32 的 PING
+    }});
+
+    function setEspOnline() {
+        document.getElementById("status-dot").className = "status-dot online";
+        document.getElementById("status-text").innerText = "ESP32 已連線 (即時同步中)";
+        if(document.getElementById("start-btn").innerText === "等待 ESP32") {
+            document.getElementById("start-btn").disabled = false;
+            document.getElementById("start-btn").innerText = "進入第一關";
+        }
+    }
+
+    function setEspOffline() {
+        document.getElementById("status-dot").className = "status-dot offline";
+        document.getElementById("status-text").innerText = "ESP32 離線中 / 未插電";
         document.getElementById("start-btn").disabled = true;
         document.getElementById("start-btn").innerText = "等待 ESP32";
-    }});
+        lastPingTime = 0; // 重置計時
+    }
 
     function sendLed(s) {
         let m = new Paho.MQTT.Message(s ? "1" : "0");
         m.destinationName = topicLed; client.send(m);
     }
 
-    // 遊戲邏輯 (保持不變)
+    // === 遊戲邏輯 ===
     function startGame() {
         if(audioCtx.state === 'suspended') audioCtx.resume();
-        level = 1;
-        showScreen("screen-game");
-        nextLevel();
+        level = 1; showScreen("screen-game"); nextLevel();
     }
 
     async function nextLevel() {
         if(level > 5) return finishGame(true);
-        
         document.getElementById("level-title").innerText = `第 ${level} / 5 關`;
         document.getElementById("msg").innerText = "注意看 LED 與聽聲音...";
-        
         sequence = []; currentIndex = 0;
         let trackHtml = "";
         for(let i=0; i < level + 1; i++) { 
@@ -154,7 +100,6 @@
             trackHtml += `<div class="node ${isLong?'long':'short'}" id="n-${i}"></div>`;
         }
         document.getElementById("track").innerHTML = trackHtml;
-
         gameState = "PLAYING";
         await new Promise(r => setTimeout(r, 1000));
         
@@ -167,31 +112,31 @@
             document.getElementById(`n-${i}`).classList.remove("active-input");
             await new Promise(r => setTimeout(r, 300));
         }
-        
-        gameState = "WAITING";
-        document.getElementById("msg").innerText = "輪到你了！請按下按鈕";
+        gameState = "WAITING"; document.getElementById("msg").innerText = "輪到你了！請按下按鈕";
     }
 
-    function handleInput(act) {
+    function handleInput(payload) {
         if(gameState !== "WAITING") return;
         let node = document.getElementById(`n-${currentIndex}`);
 
-        if(act === "DOWN") {
-            pressStartTime = Date.now();
+        if(payload === "DOWN") {
             toggleLiveTone(true);
             node.classList.add("active-input");
-        } else {
-            let dur = Date.now() - pressStartTime;
+        } else if (payload.startsWith("UP:")) {
             toggleLiveTone(false);
             node.classList.remove("active-input");
             
-            let isLong = dur > 400;
+            // ★ 核心優化：直接讀取 ESP32 傳來的實體按壓時間 (毫秒)
+            let hardwareDuration = parseInt(payload.split(":")[1]); 
+            console.log("ESP32 判定按壓時間: " + hardwareDuration + " ms");
+            
+            let isLong = hardwareDuration > 400; // 超過 400ms 視為長按
+            
             if(isLong === (sequence[currentIndex] === 1)) {
                 node.classList.add("correct");
                 currentIndex++;
                 if(currentIndex === sequence.length) {
-                    level++;
-                    setTimeout(nextLevel, 1000);
+                    level++; setTimeout(nextLevel, 1000);
                 }
             } else {
                 node.classList.add("wrong");
@@ -201,22 +146,15 @@
     }
 
     function finishGame(success) {
-        gameState = "IDLE";
-        showScreen("screen-result");
+        gameState = "IDLE"; showScreen("screen-result");
         document.getElementById("result-title").innerText = success ? "🎉 挑戰成功！" : "❌ 挑戰失敗";
         document.getElementById("result-score").innerText = `最終進度：第 ${level > 5 ? 5 : level-1} / 5 關`;
-        
-        if(success) {
-            sendLed(true); setTimeout(()=>sendLed(false), 1000); 
-            sendToDiscord();
-        }
+        if(success) { sendLed(true); setTimeout(()=>sendLed(false), 1000); sendToDiscord(); }
     }
 
     function sendToDiscord() {
         if(!DISCORD_WEBHOOK.startsWith("http")) return;
-        fetch(DISCORD_WEBHOOK, {
-            method: "POST",
-            headers: {"Content-Type": "application/json"},
+        fetch(DISCORD_WEBHOOK, { method: "POST", headers: {"Content-Type": "application/json"},
             body: JSON.stringify({content: `🏆 **大師誕生！** 有人剛剛通過了摩斯記憶 **全部 5 個關卡**！`})
         });
     }
@@ -226,9 +164,5 @@
             document.getElementById(s).classList.toggle("hidden", s !== id);
         });
     }
-
     function resetToStart() { showScreen("screen-start"); }
 </script>
-
-</body>
-</html>
