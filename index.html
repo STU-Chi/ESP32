@@ -417,7 +417,7 @@
     
             // === 🌟 網路延遲補償機制 (Latency Compensation) ===
             // 因為 MQTT 傳輸需要時間，我們將指針往「移動的反方向」倒退幾步，還原你按下的瞬間。
-            const latencyOffset = 10; // 延遲補償值：如果發現指針還是過頭，可以把數字調大(如 8 或 10)
+            const latencyOffset = 7; // 延遲補償值：如果發現指針還是過頭，可以把數字調大(如 8 或 10)
             attackPointerX = attackPointerX - (latencyOffset * attackPointerDir);
             
             // 防止指針倒退超出畫面邊界
