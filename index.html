@@ -412,49 +412,47 @@
     }
 
     function triggerPhysicalAttack() {
-            if (gameState !== battleState.ATTACK_SWING) return;
-            cancelAnimationFrame(attackAnimationId);
-    
-            // === 🌟 網路延遲補償機制 (Latency Compensation) ===
-            // 因為 MQTT 傳輸需要時間，我們將指針往「移動的反方向」倒退幾步，還原你按下的瞬間。
-            const latencyOffset = 7; // 延遲補償值：如果發現指針還是過頭，可以把數字調大(如 8 或 10)
-            attackPointerX = attackPointerX - (latencyOffset * attackPointerDir);
-            
-            // 防止指針倒退超出畫面邊界
-            if (attackPointerX < 0) attackPointerX = 0;
-            if (attackPointerX > 100) attackPointerX = 100;
-            
-            // 更新指針最後停下的視覺位置，讓你看見它 "修正" 回去了
-            document.getElementById("attack-pointer").style.left = attackPointerX + "%";
-            // =================================================
-    
-            document.getElementById("attack-pointer").classList.add("stopped");
-            playSound(1200, 50, 'square', 0.1);
-    
-            // 稍微放寬完美命中的綠色區域 (從原本的 15% 寬度增加到 20% 寬度)
-            const greenMin = 40.0, greenMax = 70.0; 
-            const isHit = attackPointerX >= greenMin && attackPointerX <= greenMax;
-            const dmg = isHit ? Math.round(40 - Math.abs(50 - attackPointerX)) : 0;
-            const accuracy = Math.round(attackPointerX);
-    
-            gameState = battleState.ENEMY_DAMAGE_ANIM;
-            document.getElementById("cat-canvas").classList.add("shake");
-            if(isHit) playSound(150, 600, 'sawtooth', 0.1);
-    
-            // 抖動結束後 (0.6s)
-            setTimeout(() => {
-                document.getElementById("cat-canvas").classList.remove("shake");
-                document.getElementById("attack-bar-container").style.display = "none";
-                document.getElementById("box-text-content").style.display = "block";
-                document.getElementById("msg").style.display = "none";
-                if (isHit) {
-                    handleAttackResolutionHit(dmg, accuracy);
-                } else {
-                    handleAttackResolutionMiss();
-                }
-            }, 600); 
-        }
+        if (gameState !== battleState.ATTACK_SWING) return;
+        cancelAnimationFrame(attackAnimationId);
 
+        // === 🚀 核心魔法：網路延遲補償 (Lag Compensation) ===
+        // 假設網路延遲約 100ms，我們強制將指針「往回倒退」一點
+        // 這個數字(3.5)可以根據你家的網路手感微調，數值越大退越多
+        const lagOffset = 3.5; 
+        attackPointerX -= lagOffset * attackPointerDir;
+
+        // 確保回推後指針不會掉出 0%~100% 的範圍
+        if (attackPointerX < 0) attackPointerX = 0;
+        if (attackPointerX > 100) attackPointerX = 100;
+
+        // 更新回推後真正的位置
+        document.getElementById("attack-pointer").style.left = attackPointerX + "%";
+        document.getElementById("attack-pointer").classList.add("stopped");
+        playSound(1200, 50, 'square', 0.1);
+
+        // 判定是否命中 (命中區間為 42.5 ~ 57.5)
+        const greenMin = 42.5, greenMax = 57.5; 
+        const isHit = attackPointerX >= greenMin && attackPointerX <= greenMax;
+        const dmg = isHit ? Math.round(40 - Math.abs(50 - attackPointerX)) : 0;
+        const accuracy = Math.round(attackPointerX);
+
+        gameState = battleState.ENEMY_DAMAGE_ANIM;
+        document.getElementById("cat-canvas").classList.add("shake");
+        if(isHit) playSound(150, 600, 'sawtooth', 0.1);
+
+        setTimeout(() => {
+            document.getElementById("cat-canvas").classList.remove("shake");
+            document.getElementById("attack-bar-container").style.display = "none";
+            document.getElementById("box-text-content").style.display = "block";
+            document.getElementById("msg").style.display = "none";
+            if (isHit) {
+                handleAttackResolutionHit(dmg, accuracy);
+            } else {
+                handleAttackResolutionMiss();
+            }
+        }, 600); 
+    }
+    
     function handleAttackResolutionHit(dmg, accuracy) {
         gameState = battleState.MENU_ACTION;
         enemyHp -= dmg; if(enemyHp < 0) enemyHp = 0;
