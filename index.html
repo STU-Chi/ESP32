@@ -167,7 +167,7 @@
         /* 攻擊指針區 */
         #attack-bar-container { display: none; width: 90%; height: 40px; position: relative; margin: 20px 0; }
         .attack-bar { width: 100%; height: 100%; background-color: var(--damage-color); border: calc(var(--pixel-size)) solid var(--text-color); box-sizing: border-box; position: relative; }
-        .green-zone { width: 30%; height: 100%; background-color: var(--hp-color); position: absolute; left: 50%; transform: translateX(-50%); }
+        .green-zone { width: 23%; height: 100%; background-color: var(--hp-color); position: absolute; left: 50%; transform: translateX(-50%); }
         .pointer { width: calc(var(--pixel-size) * 1.5); height: calc(100% + calc(var(--pixel-size) * 2)); background-color: var(--text-color); position: absolute; left: 0%; top: calc(var(--pixel-size) * -1); transition: left 0.1s linear; }
         .pointer.stopped { box-shadow: 0 0 calc(var(--pixel-size) * 2) var(--text-color); background-color: var(--text-color); }
 
@@ -404,7 +404,7 @@
         if(gameState !== battleState.ATTACK_SWING) return;
         
         // ★ 核心優化：將速度步長從原本的 4 減慢到 2 ★
-        attackPointerX += 1 * attackPointerDir; 
+        attackPointerX += 1.5 * attackPointerDir; 
         
         if (attackPointerX >= 100 || attackPointerX <= 0) attackPointerDir *= -1;
         document.getElementById("attack-pointer").style.left = attackPointerX + "%";
