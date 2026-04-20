@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>貓咪大戰 </title>
+    <title>貓咪戰鬥 </title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
     <style>
@@ -54,10 +54,10 @@
         }
 
         /* === 敵方區域 === */
-        .enemy-area { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; font-size: 2rem; line-height: 1.1; min-height: 180px; }
+        .enemy-area { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; font-size: 2rem; line-height: 1.0; min-height: 180px; }
         
         /* 貓咪 ASCII 容器，這裡負責抖動動畫 */
-        .wizard-cat { white-space: pre; letter-spacing: -2px; color: #bdc3c7; transition: 0.1s; position: relative;}
+        .wizard-cat { white-space: pre; letter-spacing: -1px; color: #bdc3c7; transition: 0.1s; position: relative;}
         
         /* === 貓咪左右抖動傷害動畫 (CSS Keyframes) === */
         @keyframes damageShake {
@@ -74,7 +74,7 @@
             100% { transform: translateX(0px); }
         }
         /* 當扣血時增加此類別 */
-        . wizard-cat.shake {
+        .wizard-cat.shake {
             animation: damageShake 0.6s linear;
             animation-iteration-count: 1;
         }
@@ -166,7 +166,7 @@
         @media (max-width: 600px) {
             .battle-arena { padding: 15px; border-width: 2px; }
             .enemy-area { font-size: 1.5rem; min-height: 120px; }
-            .wizard-cat { font-size: 1.1rem; letter-spacing: -1px;} /* 手機板貓臉再縮小一點點避免跑位 */
+            .wizard-cat { font-size: 1.1rem; letter-spacing: -1px; line-height: 0.9;} /* 手機板排版微調 */
             .battle-box { font-size: 1.4rem; min-height: 120px; padding: 15px; }
             .player-ui { font-size: 1.2rem; }
             .action-btn { 
@@ -176,7 +176,7 @@
                 text-align: center;
                 margin-bottom: 5px;
             }
-            /* 手機版移除 ::before 愛心，防止手指點擊觸發不對應的 hover 狀態 */
+            /* 手機版移除 ::before 愛心 */
             .action-btn::before { display: none !important; }
             .action-btn.active { color: var(--ui-color); border-color: var(--ui-color); }
             
@@ -196,265 +196,8 @@
     <div class="battle-arena">
         
         <div class="enemy-area">
-            <div id="msg" style="display: none; color: var(--damage-color); font-size: 1.5rem; margin-bottom: 10px;">注意 ESP32 指針！按下按鈕攻擊</div>
+            <div id="msg" style="display: none; color: var(--damage-color); font-size: 1.5rem; margin-bottom: 10px;">注意指針！按下按鈕攻擊</div>
             <div id="cat-canvas" class="wizard-cat">
- /\_/\ 
+      /\_/\\
 ( o.o ) <[Meeeowgic!]>
- > ^ < 
-            </div>
-            <div class="enemy-hp-container">
-                <span style="color:var(--hp-color);">HP</span>
-                <div class="enemy-hp-bar-outer"><div id="enemy-hp-bar" class="enemy-hp-bar-inner"></div></div>
-            </div>
-        </div>
-
-        <div class="battle-box">
-            <div id="box-text-content" class="box-text">一隻野貓擋住了去路！<br>在網頁點擊 FIGHT 後按 ESP32 攻擊。</div>
-            
-            <div id="act-menu-container" class="act-menu-container">
-                <div class="act-option" onclick="executeAct('check')">* 檢查 (Check)</div>
-                <div class="act-option" onclick="executeAct('praise')">* 讚賞 (Praise)</div>
-            </div>
-
-            <div id="attack-bar-container">
-                <div class="attack-bar">
-                    <div class="green-zone"></div>
-                    <div id="attack-pointer" class="pointer"></div>
-                </div>
-            </div>
-        </div>
-
-        <div class="player-ui">
-            <div class="player-info-row">
-                <span>YOU [LV 1]</span>
-                <div class="hp-bar-outer"><div class="hp-bar-inner"></div></div>
-                <span>HP 20/20</span>
-            </div>
-        </div>
-
-        <div class="action-buttons">
-            <button id="btn-fight" class="action-btn active" onclick="startAttackSequence()">FIGHT</button>
-            <button id="btn-act" class="action-btn" onclick="openActMenu()">ACT</button>
-            <button id="btn-mercy" class="action-btn" onclick="executeFlee()">MERCY</button>
-        </div>
-
-    </div>
-</div>
-
-<script>
-    // === 設定與 MQTT ===
-    const ROOM_ID = "UNDER_CAT_BATTLE_999"; // 與 ESP32 一致
-    const topicBtn = `morsegame/${ROOM_ID}/button`;
-    const topicStatus = `morsegame/${ROOM_ID}/status`;
-    
-    let client = new Paho.MQTT.Client("broker.emqx.io", 8084, "Web_" + Math.random().toString(16).substr(2,5));
-    client.onMessageArrived = (m) => handleMqttMessage(m.destinationName, m.payloadString);
-    client.connect({ useSSL: true, onSuccess: () => {
-        client.subscribe(topicBtn); client.subscribe(topicStatus); setOffline();
-    }});
-
-    const battleState = { IDLE: 0, ATTACK_SWING: 1, MENU_ACTION: 2, ENEMY_DAMAGE_ANIM: 3 };
-    let gameState = battleState.IDLE;
-    let enemyMaxHp = 100, enemyHp = 100, lastPingTime = 0;
-
-    // ★ 重新對準五官的貓表情 (ears and face centered)
-    const CAT_ART = {
-        normal: " /\\_/\\ \n( o.o ) <[Meeeowgic!]>\n > ^ < ",
-        hurt:   " /\\_/\\ \n( >.< ) <[Ouch!]>\n > - < ",
-        happy:  " /\\_/\\ \n( ^.^ ) <[Purrr~♥]>\n > w < ",
-        shock:  " /\\_/\\ \n( O_O ) <[...]>\n > - < ",
-        bye:    " /\\_/\\ \n( -.- ) <[Bye bye~]>\n > ~ < "
-    };
-
-    setInterval(() => {
-        if (Date.now() - lastPingTime > 5000 && lastPingTime !== 0) setOffline();
-    }, 1000);
-
-    function setOnline() { document.getElementById("online-dot").classList.add("active"); document.getElementById("status-text").innerText = "就緒"; }
-    function setOffline() { document.getElementById("online-dot").classList.remove("active"); document.getElementById("status-text").innerText = "未連線"; lastPingTime = 0; }
-
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    function playSound(freq, dur, type='square', volume=0.05) {
-        if(audioCtx.state === 'suspended') audioCtx.resume();
-        const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
-        o.type = type; o.frequency.value = freq; o.connect(g); g.connect(audioCtx.destination);
-        g.gain.setValueAtTime(volume, audioCtx.currentTime); o.start(); setTimeout(() => o.stop(), dur);
-    }
-
-    function handleMqttMessage(topic, payload) {
-        if (topic === topicStatus) {
-            if (payload === "ONLINE" || payload === "PING") { lastPingTime = Date.now(); setOnline(); }
-            else if (payload === "OFFLINE") setOffline();
-        } else if (topic === topicBtn && payload === "DOWN") {
-            triggerPhysicalAttack();
-        }
-    }
-
-    function showDialog(text) {
-        document.getElementById("box-text-content").style.display = "block";
-        document.getElementById("act-menu-container").style.display = "none";
-        document.getElementById("attack-bar-container").style.display = "none";
-        document.getElementById("msg").style.display = "none";
-        document.getElementById("box-text-content").innerHTML = text;
-    }
-    function updateCat(artType) { document.getElementById("cat-canvas").innerText = CAT_ART[artType]; }
-
-    // === 1. FIGHT 系統 (核心動畫修改) ===
-    let attackPointerX = 0, attackPointerDir = 1, attackAnimationId = null;
-
-    function startAttackSequence() {
-        if(gameState !== battleState.IDLE) return;
-        gameState = battleState.ATTACK_SWING;
-        
-        // ★ 移除 FIGHT 按鈕的 active 狀態，防止愛心打架
-        document.getElementById("btn-fight").classList.remove("active");
-
-        document.getElementById("box-text-content").style.display = "none";
-        document.getElementById("msg").style.display = "block";
-        document.getElementById("attack-bar-container").style.display = "block";
-        
-        playSound(440, 100, 'square'); setTimeout(()=>playSound(880, 100, 'square'), 100);
-        attackPointerX = 0; attackPointerDir = 1;
-        document.getElementById("attack-pointer").style.left = "0%";
-        document.getElementById("attack-pointer").classList.remove("stopped"); // 重置樣式
-        startPointerAnimation();
-    }
-
-    function startPointerAnimation() {
-        if(gameState !== battleState.ATTACK_SWING) return;
-        attackPointerX += 4 * attackPointerDir; 
-        if (attackPointerX >= 100 || attackPointerX <= 0) attackPointerDir *= -1;
-        document.getElementById("attack-pointer").style.left = attackPointerX + "%";
-        attackAnimationId = requestAnimationFrame(startPointerAnimation);
-    }
-
-    function triggerPhysicalAttack() {
-        if (gameState !== battleState.ATTACK_SWING) return;
-        
-        // 1. 立刻停止動畫計時器
-        cancelAnimationFrame(attackAnimationId);
-        
-        // 2. ★ 停止指針樣式 (留在原位不消失)
-        document.getElementById("attack-pointer").classList.add("stopped");
-        playSound(1200, 50, 'square', 0.1);
-
-        // 3. 計算傷害 (此時不顯示文字，先存起來)
-        const greenMin = 42.5, greenMax = 57.5; 
-        const isHit = attackPointerX >= greenMin && attackPointerX <= greenMax;
-        const dmg = isHit ? Math.round(40 - Math.abs(50 - attackPointerX)) : 0;
-        const accuracy = Math.round(attackPointerX);
-
-        // 4. 進入敵人受傷動畫狀態
-        gameState = battleState.ENEMY_DAMAGE_ANIM;
-
-        // 5. ★ 貓咪左右劇烈抖動 (CSS 動畫)
-        document.getElementById("cat-canvas").classList.add("shake");
-        if(isHit) playSound(150, 600, 'sawtooth', 0.1); // 傷害音效
-
-        // 6. ★ 抖動結束後 (0.6s) 的處理
-        setTimeout(() => {
-            document.getElementById("cat-canvas").classList.remove("shake");
-            
-            // 指針消失，顯示對話白框
-            document.getElementById("attack-bar-container").style.display = "none";
-            document.getElementById("box-text-content").style.display = "block";
-            document.getElementById("msg").style.display = "none";
-
-            // 執行血條與貓咪表情更新邏輯
-            if (isHit) {
-                handleAttackResolutionHit(dmg, accuracy);
-            } else {
-                handleAttackResolutionMiss();
-            }
-        }, 600); // 這裡的延遲必須與 CSS damageShake 的時間一致 (0.6s)
-    }
-
-    // 真正的扣血與表情更新邏輯
-    function handleAttackResolutionHit(dmg, accuracy) {
-        gameState = battleState.MENU_ACTION;
-        enemyHp -= dmg; if(enemyHp < 0) enemyHp = 0;
-        
-        let hpPercent = (enemyHp / enemyMaxHp) * 100;
-        document.getElementById("enemy-hp-bar").style.width = hpPercent + "%";
-        
-        updateCat("hurt"); // 此時才換成hurt表情
-        showDialog(`* 成功擊中中心！造成的準確度: ${accuracy}<br>* 造成了 ${dmg} 點物理傷害。`);
-        
-        setTimeout(() => {
-            if (enemyHp === 0) {
-                showDialog("* 魔法貓咪被擊敗了！你贏了！");
-                updateCat(" shock");
-                setTimeout(resetGame, 4000); 
-            } else {
-                resetToIdle();
-            }
-        }, 2000);
-    }
-
-    function handleAttackResolutionMiss() {
-        gameState = battleState.MENU_ACTION;
-        playSound(100, 300, 'sawtooth', 0.1);
-        updateCat("shock");
-        showDialog("* 阿喔！沒按準，Miss！<br>* 指針偏離了中心區域。");
-        setTimeout(resetToIdle, 1500);
-    }
-
-    // === 2. ACT / MERCY 系統 (修復按鈕 active 類別打架) ===
-    function openActMenu() {
-        if(gameState !== battleState.IDLE) return;
-        
-        // ★ 進入ACT選單時，把FIGHT的active移除，防止愛心打架
-        document.getElementById("btn-fight").classList.remove("active");
-
-        gameState = battleState.MENU_ACTION;
-        document.getElementById("box-text-content").style.display = "none";
-        document.getElementById("attack-bar-container").style.display = "none";
-        document.getElementById("act-menu-container").style.display = "flex";
-        playSound(440, 50);
-    }
-
-    function executeAct(action) {
-        playSound(600, 50);
-        if (action === 'check') {
-            updateCat("shock");
-            showDialog("* 魔法野貓 - 攻擊 1 防禦 1。<br>* 看起來喜歡被稱讚。不會攻擊。");
-        } else if (action === 'praise') {
-            updateCat("happy");
-            showDialog("* 你稱讚了魔法貓咪的帽子看起來很潮。<br>* 貓咪大師很開心，對你喵喵叫。");
-        }
-        setTimeout(resetToIdle, 3000);
-    }
-
-    function executeFlee() {
-        if(gameState !== battleState.IDLE) return;
-        
-        // 逃跑時也要移除 active
-        document.getElementById("btn-fight").classList.remove("active");
-
-        gameState = battleState.MENU_ACTION;
-        playSound(800, 100);
-        updateCat("bye");
-        showDialog("* 你選擇了逃跑...<br>* 脫離了戰鬥！喵！");
-        setTimeout(resetGame, 2000);
-    }
-
-    // === 狀態重置 ===
-    function resetToIdle() {
-        gameState = battleState.IDLE;
-        updateCat("normal");
-        showDialog("* 戰鬥繼續... 在網頁點擊 FIGHT 後按 ESP32 攻擊。");
-        
-        // ★ 回到 IDLE，FIGHT 變回 Active，顯示愛心
-        document.getElementById("btn-fight").classList.add("active");
-    }
-
-    function resetGame() {
-        enemyHp = enemyMaxHp;
-        document.getElementById("enemy-hp-bar").style.width = "100%";
-        resetToIdle();
-        showDialog("* 一隻戴著魔法帽的野貓擋住了去路！<br>點擊 FIGHT 後按 ESP32 按鈕攻擊。喵。");
-    }
-</script>
-
-</body>
-</html>
+ > ^
