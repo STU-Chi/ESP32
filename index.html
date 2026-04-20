@@ -3,222 +3,309 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>摩斯節奏記憶挑戰</title>
+    <title>16-bit 魔法貓大戰</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
     <style>
-        :root { --primary: #00d2ff; --bg: #1e1e2f; --card: #2a2a40; }
-        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: white; text-align: center; margin: 0; padding: 20px; }
-        .container { max-width: 500px; margin: 0 auto; background: var(--card); padding: 30px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        .hidden { display: none; }
-        
-        /* 狀態顯示 */
-        .status-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; margin-right: 5px; }
-        .online { background: #2ecc71; box-shadow: 0 0 10px #2ecc71; }
-        .offline { background: #e74c3c; }
+        :root {
+            --pixel-size: 4px;
+            --bg-color: #000;
+            --text-color: #fff;
+            --ui-color: #f1c40f;
+            --hp-color: #2ecc71;
+            --damage-color: #e74c3c;
+        }
 
-        /* 進度節點 */
-        .node { background: #444; transition: 0.1s; display: inline-block; margin: 5px; }
-        .node.short { width: 20px; height: 20px; border-radius: 50%; }
-        .node.long { width: 50px; height: 20px; border-radius: 10px; }
-        .node.active-input { background: var(--primary); box-shadow: 0 0 15px var(--primary); }
-        .node.correct { background: #2ecc71; }
-        .node.wrong { background: #e74c3c; }
-
-        .btn { background: var(--primary); color: #1e1e2f; border: none; padding: 15px 40px; font-size: 1.2rem; border-radius: 10px; cursor: pointer; font-weight: bold; margin-top: 20px; }
-        .btn:disabled { background: #555; cursor: not-allowed; }
+        body { font-family: 'VT323', monospace; background-color: #1a1a1a; color: var(--text-color); text-align: center; margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
         
-        #msg { height: 40px; margin: 20px 0; font-size: 1.2rem; color: #f1c40f; }
+        .crt-effect { position: relative; background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06)); background-size: 100% 4px, 3px 100%; pointer-events: none; z-index: 10; }
+
+        .battle-arena { width: 640px; height: 480px; background-color: var(--bg-color); border: calc(var(--pixel-size) * 1.5) solid var(--text-color); box-sizing: border-box; position: relative; overflow: hidden; display: flex; flex-direction: column; padding: 20px; }
+
+        /* === 敵方區域 === */
+        .enemy-area { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; font-size: 2rem; line-height: 1; margin-bottom: 20px; }
+        .wizard-cat { white-space: pre; letter-spacing: -2px; color: #bdc3c7; transition: 0.3s; }
+        
+        /* 敵人血條動畫區 */
+        .enemy-hp-container { display: flex; align-items: center; margin-top: 15px; gap: 15px; font-size: 1.5rem; }
+        .enemy-hp-bar-outer { width: 150px; height: 15px; background-color: var(--damage-color); border: 2px solid #fff;}
+        .enemy-hp-bar-inner { width: 100%; height: 100%; background-color: var(--hp-color); transition: width 0.4s ease-out; /* 扣血動畫 */ }
+
+        /* === 戰鬥對話框 === */
+        .battle-box { width: 100%; height: 150px; border: calc(var(--pixel-size)) solid var(--text-color); box-sizing: border-box; background-color: var(--bg-color); padding: 20px; font-size: 1.8rem; text-align: left; position: relative; display: flex; align-items: center; justify-content: center; }
+        .box-text { width: 100%; }
+
+        /* ACT 選單選項 */
+        .act-menu-container { display: none; width: 100%; flex-wrap: wrap; justify-content: space-between; }
+        .act-option { width: 45%; cursor: pointer; margin-bottom: 15px; transition: 0.1s; }
+        .act-option:hover { color: var(--ui-color); }
+        .act-option::before { content: "♥ "; color: var(--text-color); opacity: 0; transition: 0.1s; }
+        .act-option:hover::before { opacity: 1; color: var(--damage-color); }
+
+        /* 攻擊指針區 */
+        #attack-bar-container { display: none; width: 80%; height: 60px; position: relative; }
+        .attack-bar { width: 100%; height: 100%; background-color: var(--damage-color); border: calc(var(--pixel-size)) solid var(--text-color); box-sizing: border-box; position: relative; }
+        .green-zone { width: 15%; height: 100%; background-color: var(--hp-color); position: absolute; left: 50%; transform: translateX(-50%); }
+        .pointer { width: calc(var(--pixel-size) * 2); height: calc(100% + calc(var(--pixel-size) * 2)); background-color: var(--text-color); position: absolute; left: 0%; top: calc(var(--pixel-size) * -1); transition: left 0.1s linear; }
+        .pointer.stopped { box-shadow: 0 0 calc(var(--pixel-size) * 3) var(--text-color); }
+
+        /* === 玩家 UI 區域 === */
+        .player-ui { height: 100px; margin-top: 20px; display: flex; flex-direction: column; justify-content: flex-end; align-items: flex-start; font-size: 1.5rem; }
+        .player-info-row { display: flex; align-items: center; margin-bottom: 15px; width: 100%; gap: 20px;}
+        .hp-bar-outer { width: 150px; height: 20px; background-color: var(--damage-color); border: 2px solid #fff;}
+        .hp-bar-inner { width: 100%; height: 100%; background-color: var(--hp-color); }
+
+        .action-buttons { display: flex; justify-content: space-between; width: 100%; margin-top: 10px; }
+        .action-btn { background-color: var(--bg-color); color: var(--text-color); border: calc(var(--pixel-size)) solid var(--text-color); padding: 10px calc(var(--pixel-size) * 4); font-family: 'VT323', monospace; font-size: 2rem; cursor: pointer; position: relative; }
+        .action-btn::before { content: "♥"; color: var(--damage-color); opacity: 0; position: absolute; left: calc(var(--pixel-size) * 2); transition: 0.1s; }
+        .action-btn:hover, .action-btn.active { color: var(--ui-color); border-color: var(--ui-color); }
+        .action-btn:hover::before, .action-btn.active::before { opacity: 1; }
+        .action-btn:disabled { color: #555; border-color: #555; cursor: not-allowed; }
+
+        .status-container { position: absolute; bottom: 10px; right: 10px; font-size: 1rem; color: #555;}
+        .online-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 5px; background-color: #e74c3c; }
+        .online-dot.active { background-color: #2ecc71; box-shadow: 0 0 5px #2ecc71; }
     </style>
 </head>
 <body>
 
+<div class="crt-effect"></div>
+
 <div class="container">
-    <div id="screen-start">
-        <h1>📡 摩斯記憶挑戰</h1>
-        <p><span id="status-dot" class="status-dot offline"></span> ESP32 狀態: <span id="status-text">連線中...</span></p>
-        <button id="start-btn" class="btn" onclick="startGame()" disabled>準備中</button>
-    </div>
+    <div class="battle-arena">
+        
+        <div class="enemy-area">
+            <div id="msg" style="display: none; color: var(--text-color); font-size: 2rem;">注意 ESP32 指針！</div>
+            <div id="cat-canvas" class="wizard-cat">
+ /\_/\
+( o.o ) <[Meeeowgic!]>
+ > ^ <
+            </div>
+            <div class="enemy-hp-container">
+                <span style="color:var(--hp-color);">HP</span>
+                <div class="enemy-hp-bar-outer"><div id="enemy-hp-bar" class="enemy-hp-bar-inner"></div></div>
+            </div>
+        </div>
 
-    <div id="screen-game" class="hidden">
-        <h2 id="level-title">第 1 / 5 關</h2>
-        <div id="msg">注意聽節奏...</div>
-        <div id="track" style="min-height: 60px;"></div>
-    </div>
+        <div class="battle-box">
+            <div id="box-text-content" class="box-text">一隻戴著魔法帽的野貓擋住了去路！<br>在網頁點擊 FIGHT 後按 ESP32 攻擊。</div>
+            
+            <div id="act-menu-container" class="act-menu-container">
+                <div class="act-option" onclick="executeAct('check')">* 檢查 (Check)</div>
+                <div class="act-option" onclick="executeAct('praise')">* 讚賞 (Praise)</div>
+            </div>
 
-    <div id="screen-result" class="hidden">
-        <h1 id="result-title">挑戰成功！</h1>
-        <p id="result-score">最終得分：5 / 5</p>
-        <button class="btn" onclick="resetToStart()">再玩一次</button>
+            <div id="attack-bar-container">
+                <div class="attack-bar">
+                    <div class="green-zone"></div>
+                    <div id="attack-pointer" class="pointer"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="player-ui">
+            <div class="player-info-row">
+                <span>YOU [LV 1]</span>
+                <div class="hp-bar-outer"><div class="hp-bar-inner"></div></div>
+                <span>HP 20/20</span>
+            </div>
+        </div>
+
+        <div class="action-buttons">
+            <button id="btn-fight" class="action-btn active" onclick="startAttackSequence()">FIGHT</button>
+            <button id="btn-act" class="action-btn" onclick="openActMenu()">ACT</button>
+            <button id="btn-item" class="action-btn" disabled>ITEM</button>
+            <button id="btn-mercy" class="action-btn" onclick="executeFlee()">MERCY</button>
+        </div>
+
+        <div class="status-container">
+            <span id="online-dot" class="online-dot"></span> ESP32: <span id="status-text">離線</span>
+        </div>
+
     </div>
 </div>
 
 <script>
-    const ROOM_ID = "STU-s22115103";
-    const DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1490915002364985415/IIiu_o6Y5k7sfA5vs3FbsXxyTk1clSHrBpeNSVv2FcmhTXARqtsc3npq3PXpIRmVTz96";
-    
-    const topicLed = `morsegame/${ROOM_ID}/led`;
+    // === 設定與 MQTT ===
+    const ROOM_ID = "UNDER_CAT_BATTLE_999"; 
     const topicBtn = `morsegame/${ROOM_ID}/button`;
     const topicStatus = `morsegame/${ROOM_ID}/status`;
     
-    let client, sequence = [], currentIndex = 0, level = 1;
-    let gameState = "IDLE"; 
-    
-    // 心跳監控
-    let lastPingTime = 0;
-    setInterval(() => {
-        // 如果超過 5 秒沒收到 ESP32 的訊號，強制轉為離線狀態
-        if (Date.now() - lastPingTime > 5000 && lastPingTime !== 0) {
-            setEspOffline();
-        }
-    }, 1000);
-
-    // Web Audio API
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    let osc = null;
-    function playTone(dur) {
-        const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
-        o.frequency.value = 600; o.connect(g); g.connect(audioCtx.destination);
-        g.gain.setValueAtTime(0.1, audioCtx.currentTime); o.start(); setTimeout(() => o.stop(), dur);
-    }
-    function toggleLiveTone(on) {
-        if(on) {
-            if(osc) return;
-            osc = audioCtx.createOscillator(); const g = audioCtx.createGain();
-            osc.frequency.value = 600; osc.connect(g); g.connect(audioCtx.destination);
-            g.gain.setValueAtTime(0.1, audioCtx.currentTime); osc.start();
-        } else { if(osc) { osc.stop(); osc = null; } }
-    }
-
-    // MQTT 連線
-    client = new Paho.MQTT.Client("broker.emqx.io", 8084, "Web_" + Math.random().toString(16).substr(2,5));
-    
-    client.onMessageArrived = (m) => {
-        let topic = m.destinationName;
-        let payload = m.payloadString;
-
-        if (topic === topicStatus) {
-            if (payload === "ONLINE" || payload === "PING") {
-                lastPingTime = Date.now();
-                setEspOnline();
-            } else if (payload === "OFFLINE") {
-                setEspOffline();
-            }
-        } else if (topic === topicBtn) {
-            handleInput(payload);
-        }
-    };
-
+    let client = new Paho.MQTT.Client("broker.emqx.io", 8084, "Web_" + Math.random().toString(16).substr(2,5));
+    client.onMessageArrived = (m) => handleMqttMessage(m.destinationName, m.payloadString);
     client.connect({ useSSL: true, onSuccess: () => {
-        client.subscribe(topicBtn);
-        client.subscribe(topicStatus);
-        setEspOffline(); // 初始設為離線，等待 ESP32 的 PING
+        client.subscribe(topicBtn); client.subscribe(topicStatus); setOffline();
     }});
 
-    function setEspOnline() {
-        document.getElementById("status-dot").className = "status-dot online";
-        document.getElementById("status-text").innerText = "ESP32 已連線 (即時同步中)";
-        if(document.getElementById("start-btn").innerText === "等待 ESP32") {
-            document.getElementById("start-btn").disabled = false;
-            document.getElementById("start-btn").innerText = "進入第一關";
-        }
-    }
+    // === 遊戲變數 ===
+    const battleState = { IDLE: 0, ATTACK_SWING: 1, MENU: 2 };
+    let gameState = battleState.IDLE;
+    let enemyMaxHp = 100;
+    let enemyHp = 100;
+    let lastPingTime = 0;
 
-    function setEspOffline() {
-        document.getElementById("status-dot").className = "status-dot offline";
-        document.getElementById("status-text").innerText = "ESP32 離線中 / 未插電";
-        document.getElementById("start-btn").disabled = true;
-        document.getElementById("start-btn").innerText = "等待 ESP32";
-        lastPingTime = 0; // 重置計時
-    }
+    // 貓咪表情包 ASCII
+    const CAT_ART = {
+        normal: " /\\_/\\\n( o.o ) <[Meeeowgic!]>\n > ^ < ",
+        hurt:   " /\\_/\\\n( >.< ) <[Ouch!]>\n > - < ",
+        happy:  " /\\_/\\\n( ^.^ ) <[Purrr~♥]>\n > w < ",
+        shock:  " /\\_/\\\n( O_O ) <[...]>\n > - < ",
+        bye:    " /\\_/\\\n( -.- ) <[Bye bye~]>\n > ~ < "
+    };
 
-    function sendLed(s) {
-        let m = new Paho.MQTT.Message(s ? "1" : "0");
-        m.destinationName = topicLed; client.send(m);
-    }
+    // 心跳監控
+    setInterval(() => {
+        if (Date.now() - lastPingTime > 5000 && lastPingTime !== 0) setOffline();
+    }, 1000);
 
-    // === 遊戲邏輯 ===
-    function startGame() {
+    function setOnline() { document.getElementById("online-dot").classList.add("active"); document.getElementById("status-text").innerText = "就緒"; }
+    function setOffline() { document.getElementById("online-dot").classList.remove("active"); document.getElementById("status-text").innerText = "未連線"; lastPingTime = 0; }
+
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playSound(freq, dur, type='square') {
         if(audioCtx.state === 'suspended') audioCtx.resume();
-        level = 1; showScreen("screen-game"); nextLevel();
+        const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+        o.type = type; o.frequency.value = freq; o.connect(g); g.connect(audioCtx.destination);
+        g.gain.setValueAtTime(0.05, audioCtx.currentTime); o.start(); setTimeout(() => o.stop(), dur);
     }
 
-    async function nextLevel() {
-        if(level > 5) return finishGame(true);
-        document.getElementById("level-title").innerText = `第 ${level} / 5 關`;
-        document.getElementById("msg").innerText = "注意看 LED 與聽聲音...";
-        sequence = []; currentIndex = 0;
-        let trackHtml = "";
-        for(let i=0; i < level + 1; i++) { 
-            let isLong = Math.random() > 0.5 ? 1 : 0;
-            sequence.push(isLong);
-            trackHtml += `<div class="node ${isLong?'long':'short'}" id="n-${i}"></div>`;
+    function handleMqttMessage(topic, payload) {
+        if (topic === topicStatus) {
+            if (payload === "ONLINE" || payload === "PING") { lastPingTime = Date.now(); setOnline(); }
+            else if (payload === "OFFLINE") setOffline();
+        } else if (topic === topicBtn && payload === "DOWN") {
+            triggerPhysicalAttack();
         }
-        document.getElementById("track").innerHTML = trackHtml;
-        gameState = "PLAYING";
-        await new Promise(r => setTimeout(r, 1000));
+    }
+
+    // === UI 切換輔助 ===
+    function showDialog(text) {
+        document.getElementById("box-text-content").style.display = "block";
+        document.getElementById("act-menu-container").style.display = "none";
+        document.getElementById("attack-bar-container").style.display = "none";
+        document.getElementById("msg").style.display = "none";
+        document.getElementById("box-text-content").innerHTML = text;
+    }
+    function updateCat(artType) { document.getElementById("cat-canvas").innerText = CAT_ART[artType]; }
+
+    // === 1. FIGHT 系統 ===
+    let attackPointerX = 0, attackPointerDir = 1, attackAnimationId = null;
+
+    function startAttackSequence() {
+        if(gameState !== battleState.IDLE) return;
+        gameState = battleState.ATTACK_SWING;
+        document.getElementById("box-text-content").style.display = "none";
+        document.getElementById("act-menu-container").style.display = "none";
+        document.getElementById("msg").style.display = "block";
+        document.getElementById("attack-bar-container").style.display = "block";
         
-        for(let i=0; i<sequence.length; i++) {
-            let d = sequence[i] ? 600 : 200;
-            sendLed(true); playTone(d);
-            document.getElementById(`n-${i}`).classList.add("active-input");
-            await new Promise(r => setTimeout(r, d));
-            sendLed(false);
-            document.getElementById(`n-${i}`).classList.remove("active-input");
-            await new Promise(r => setTimeout(r, 300));
-        }
-        gameState = "WAITING"; document.getElementById("msg").innerText = "輪到你了！請按下按鈕";
+        playSound(440, 100); setTimeout(()=>playSound(880, 100), 100);
+        attackPointerX = 0; attackPointerDir = 1;
+        document.getElementById("attack-pointer").style.left = "0%";
+        document.getElementById("attack-pointer").classList.remove("stopped");
+        startPointerAnimation();
     }
 
-    function handleInput(payload) {
-        if(gameState !== "WAITING") return;
-        let node = document.getElementById(`n-${currentIndex}`);
+    function startPointerAnimation() {
+        if(gameState !== battleState.ATTACK_SWING) return;
+        attackPointerX += 4 * attackPointerDir; // 難度速度
+        if (attackPointerX >= 100 || attackPointerX <= 0) attackPointerDir *= -1;
+        document.getElementById("attack-pointer").style.left = attackPointerX + "%";
+        attackAnimationId = requestAnimationFrame(startPointerAnimation);
+    }
 
-        if(payload === "DOWN") {
-            toggleLiveTone(true);
-            node.classList.add("active-input");
-        } else if (payload.startsWith("UP:")) {
-            toggleLiveTone(false);
-            node.classList.remove("active-input");
-            
-            // ★ 核心優化：直接讀取 ESP32 傳來的實體按壓時間 (毫秒)
-            let hardwareDuration = parseInt(payload.split(":")[1]); 
-            console.log("ESP32 判定按壓時間: " + hardwareDuration + " ms");
-            
-            let isLong = hardwareDuration > 400; // 超過 400ms 視為長按
-            
-            if(isLong === (sequence[currentIndex] === 1)) {
-                node.classList.add("correct");
-                currentIndex++;
-                if(currentIndex === sequence.length) {
-                    level++; setTimeout(nextLevel, 1000);
-                }
+    function triggerPhysicalAttack() {
+        if (gameState !== battleState.ATTACK_SWING) return;
+        cancelAnimationFrame(attackAnimationId);
+        document.getElementById("attack-pointer").classList.add("stopped");
+        playSound(1200, 50);
+
+        const greenMin = 42.5, greenMax = 57.5; // 50% 正中心，寬度 15%
+        if (attackPointerX >= greenMin && attackPointerX <= greenMax) {
+            let dmg = Math.round(40 - Math.abs(50 - attackPointerX));
+            handleAttackHit(dmg);
+        } else {
+            handleAttackMiss();
+        }
+    }
+
+    function handleAttackHit(dmg) {
+        gameState = battleState.MENU;
+        enemyHp -= dmg; if(enemyHp < 0) enemyHp = 0;
+        
+        // ★ 更新血條動畫 ★
+        let hpPercent = (enemyHp / enemyMaxHp) * 100;
+        document.getElementById("enemy-hp-bar").style.width = hpPercent + "%";
+        
+        updateCat("hurt");
+        showDialog(`* 成功擊中！造成了 ${dmg} 點傷害。`);
+        playSound(600, 100, 'sawtooth'); playSound(400, 200, 'sawtooth');
+
+        setTimeout(() => {
+            if (enemyHp === 0) {
+                showDialog("* 魔法貓咪被擊敗了！獲得 0 EXP, 10 GOLD。");
+                setTimeout(resetGame, 3000); // 3秒後重啟遊戲
             } else {
-                node.classList.add("wrong");
-                finishGame(false);
+                resetToIdle();
             }
+        }, 2000);
+    }
+
+    function handleAttackMiss() {
+        gameState = battleState.MENU;
+        showDialog("* 阿喔！沒按準，Miss！<br>* 貓咪嘲笑了你。");
+        playSound(100, 300, 'sawtooth');
+        setTimeout(resetToIdle, 1500);
+    }
+
+    // === 2. ACT 系統 ===
+    function openActMenu() {
+        if(gameState !== battleState.IDLE) return;
+        gameState = battleState.MENU;
+        document.getElementById("box-text-content").style.display = "none";
+        document.getElementById("attack-bar-container").style.display = "none";
+        document.getElementById("act-menu-container").style.display = "flex";
+        playSound(440, 50);
+    }
+
+    function executeAct(action) {
+        playSound(600, 50);
+        if (action === 'check') {
+            updateCat("shock");
+            showDialog("* 魔法野貓 - 攻擊力 1 防禦力 1。<br>* 看起來很喜歡被稱讚。不會主動攻擊。");
+        } else if (action === 'praise') {
+            updateCat("happy");
+            showDialog("* 你稱讚了魔法貓咪的帽子很好看。<br>* 貓咪大師很開心，發出了呼嚕嚕的聲音。");
         }
+        setTimeout(resetToIdle, 3000);
     }
 
-    function finishGame(success) {
-        gameState = "IDLE"; showScreen("screen-result");
-        document.getElementById("result-title").innerText = success ? "🎉 挑戰成功！" : "❌ 挑戰失敗";
-        document.getElementById("result-score").innerText = `最終進度：第 ${level > 5 ? 5 : level-1} / 5 關`;
-        if(success) { sendLed(true); setTimeout(()=>sendLed(false), 1000); sendToDiscord(); }
+    // === 3. MERCY 系統 ===
+    function executeFlee() {
+        if(gameState !== battleState.IDLE) return;
+        gameState = battleState.MENU;
+        playSound(800, 100);
+        updateCat("bye");
+        showDialog("* 你選擇了逃跑...<br>* 順利脫離了戰鬥！");
+        
+        // 逃跑後 2 秒重置整個遊戲
+        setTimeout(resetGame, 2000);
     }
 
-    function sendToDiscord() {
-        if(!DISCORD_WEBHOOK.startsWith("http")) return;
-        fetch(DISCORD_WEBHOOK, { method: "POST", headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({content: `🏆 **大師誕生！** 有人剛剛通過了摩斯記憶 **全部 5 個關卡**！`})
-        });
+    // === 狀態重置 ===
+    function resetToIdle() {
+        gameState = battleState.IDLE;
+        updateCat("normal");
+        showDialog("* 戰鬥繼續... 輪到你了。");
     }
 
-    function showScreen(id) {
-        ["screen-start", "screen-game", "screen-result"].forEach(s => {
-            document.getElementById(s).classList.toggle("hidden", s !== id);
-        });
+    function resetGame() {
+        enemyHp = enemyMaxHp;
+        document.getElementById("enemy-hp-bar").style.width = "100%";
+        resetToIdle();
+        showDialog("* 一隻戴著魔法帽的野貓擋住了去路！<br>在網頁點擊 FIGHT 後按 ESP32 攻擊。");
     }
-    function resetToStart() { showScreen("screen-start"); }
+
 </script>
 
 </body>
