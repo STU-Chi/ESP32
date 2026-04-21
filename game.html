@@ -324,7 +324,7 @@
 
     // 遊戲與連線狀態
     let isHost = false; 
-    let lastHostHeartbeat = 0;
+    let lastHostHeartbeat = Date.now();
     const battleState = { IDLE: 0, ATTACK_SWING: 1, MENU_ACTION: 2, ENEMY_DAMAGE_ANIM: 3 };
     let gameState = battleState.IDLE;
     let enemyMaxHp = 100, enemyHp = 100, lastPingTime = 0;
@@ -437,10 +437,22 @@
 
     // 成為房主
     function becomeHost() {
+        if (isHost) return; // 已經是房主就不用重複執行
         isHost = true;
         document.getElementById("queue-overlay").style.display = "none";
         document.getElementById("queue-status").innerText = "";
         document.getElementById("queue-status").style.color = "#2ecc71";
+
+        broadcastHeartbeat();
+        console.log("我現在是房主了喵！");
+    }
+
+    function broadcastHeartbeat() {
+        if(client.isConnected()) {
+            let message = new Paho.MQTT.Message(myPlayerId);
+            message.destinationName = topicHostHeartbeat;
+            client.send(message);
+        }
     }
 
     // 成為觀戰排隊者
