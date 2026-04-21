@@ -273,7 +273,7 @@
     <div class="battle-arena">
         
         <div class="enemy-area">
-            <div id="msg" style="display: none; color: var(--damage-color); font-size: 1.5rem; margin-bottom: 10px;">注意 ESP32 指針！按下攻擊</div>
+            <div id="msg" style="display: none; color: var(--damage-color); font-size: 1.5rem; margin-bottom: 10px;">注意指針！按下攻擊</div>
             
             <div class="enemy-visual-container">
                 <div id="cat-canvas" class="wizard-cat">
@@ -656,7 +656,7 @@ function handleAttackResolutionHit(dmg, accuracy) {
     function resetToIdle() {
         gameState = battleState.IDLE;
         updateCat("normal");
-        showDialog("* 戰鬥繼續喵喵喵喵喵喵喵... 在網頁點擊 FIGHT 後按 ESP32 攻擊。");
+        showDialog("* 戰鬥繼續喵喵喵喵喵喵喵... 在網頁點擊 FIGHT 後按 ESP32上的按鈕攻擊。");
         document.getElementById("btn-fight").classList.add("active");
     }
 
