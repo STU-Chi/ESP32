@@ -248,7 +248,11 @@
 
         <div id="queue-overlay" class="overlay-screen">
             <div style="display: flex; flex-direction: column; align-items: center; gap: 30px;">
-                <div class="wizard-cat" style="font-size: 3rem; color:#f1c40f;"> /\_/\ \n( -.- )\n > ~ < </div>
+                <div class="wizard-cat" style="font-size: 3rem; color:#f1c40f;"> 
+ /\_/\ 
+( -.- )
+ > ~ < 
+                </div>
                 <div style="background-color: var(--bg-color); border: calc(var(--pixel-size) * 0.8) solid #f1c40f; border-radius: calc(var(--pixel-size) * 2); padding: 20px 30px; font-size: 2rem; color: #f1c40f; position: relative;">
                     有人正在和貓咪戰鬥中喵！<br>請等待對方關閉網頁或離開...
                 </div>
@@ -326,7 +330,7 @@
     let gameState = battleState.IDLE;
     let enemyMaxHp = 100, enemyHp = 100, lastPingTime = 0;
 
-    const CAT_ART = { normal: " /\\_/\\ \n( o.o )\n > ^ < ", hurt:   " /\\_/\\ \n( >.< )\n > - < ", happy:  " /\\_/\\ \n( ^.^ )\n > w < ", shock:  " /\\_/\\ \n( O_O )\n > - < ", bye:    " /\\_/\\ \n( -.- )\n > ~ < " };
+    const CAT_ART = { normal: " /\\_/\\ \n( o.o )\n > ^ < ", hurt:   " /\\_/\\ \n( >.< )\n > - < ", happy:  " /\\_/\\ \n( ^.^ )\n > w < ", shock:  " /\\_/\\ \n( O_O )\n > - < ", bye:  " /\\_/\\ \n( -v- )\n > ~ < " };
     const CAT_SPEECH = { normal: "Meeeowgic!", hurt: "Ouch!", happy: "Purrr~♥", shock: "  ...  ", bye: "Bye bye~" };
 
     client.onConnectionLost = function (responseObject) {
