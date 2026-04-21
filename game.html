@@ -53,8 +53,8 @@
             overflow: hidden;
         }
 
-        /* === 斷線警告覆蓋層 (無搶奪按鈕版) === */
-        #disconnect-overlay {
+        /* === 斷線警告覆蓋層 === */
+        .overlay-screen {
             display: none; 
             position: absolute; 
             top: 0; left: 0; 
@@ -113,7 +113,6 @@
             box-shadow: 0 0 10px rgba(255,255,255,0.1);
         }
 
-        /* 預設的 < 型左側尖角 */
         .cat-speech-bubble::after {
             content: "";
             position: absolute;
@@ -127,34 +126,25 @@
             transform: rotate(45deg);
         }
 
-        /* ★ 新增：斷線嘲諷專用對話框 (指定座標與 V 型下尖角) */
         .cat-speech-bubble.noconn-speech {
             top: -19px;
             right: -161px;
         }
         .cat-speech-bubble.noconn-speech::after {
-            left: 30px; /* 將尖角移到對話框下方左側 */
-            top: 100%;  /* 貼齊下邊緣 */
-            margin-top: calc(var(--pixel-size) * -1); /* 微微上移蓋住邊框 */
-            border-left: none; /* 取消左邊框 */
-            border-top: none;  /* 取消上邊框 */
+            left: 30px; 
+            top: 100%;  
+            margin-top: calc(var(--pixel-size) * -1); 
+            border-left: none; 
+            border-top: none;  
             border-right: calc(var(--pixel-size) * 0.8) solid var(--text-color);
             border-bottom: calc(var(--pixel-size) * 0.8) solid var(--text-color);
-            transform: rotate(45deg); /* 產生朝下的 V 型 */
+            transform: rotate(45deg); 
         }
 
         @keyframes damageShake {
-            0% { transform: translateX(0px); }
-            10% { transform: translateX(20px); }
-            20% { transform: translateX(-20px); }
-            30% { transform: translateX(15px); }
-            40% { transform: translateX(-15px); }
-            50% { transform: translateX(10px); }
-            60% { transform: translateX(-10px); }
-            70% { transform: translateX(5px); }
-            80% { transform: translateX(-5px); }
-            90% { transform: translateX(2px); }
-            100% { transform: translateX(0px); }
+            0%, 100% { transform: translateX(0px); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(15px); }
+            20%, 40%, 60%, 80% { transform: translateX(-15px); }
         }
         .wizard-cat.shake { animation: damageShake 0.6s linear; animation-iteration-count: 1; }
 
@@ -201,11 +191,13 @@
         .action-btn:hover::before { opacity: 1 !important; } 
         .action-btn.active::before { opacity: 1; }
         .action-buttons:hover .action-btn.active::before { opacity: 0; }
-        .action-btn:disabled { color: #555; border-color: #555; cursor: not-allowed; }
 
         .status-container { position: absolute; top: -25px; right: 0px; font-size: 1rem; color: #888; white-space: nowrap;}
+        .status-container span { transition: color 0.3s; }
         .online-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 5px; background-color: #e74c3c; }
         .online-dot.active { background-color: #2ecc71; box-shadow: 0 0 5px #2ecc71; }
+        
+        #queue-status { color: #f1c40f; margin-left: 10px; font-weight: bold; }
 
         @media (max-width: 600px) {
             .battle-arena { padding: 15px; border-width: 2px; }
@@ -213,7 +205,6 @@
             .enemy-visual-container { flex-direction: column-reverse; padding-top: 0; }
             .wizard-cat { font-size: 1.5rem; letter-spacing: -1px; margin-top: 10px;}
             
-            /* 手機版強制覆寫對話框設定，避免跑版 */
             .cat-speech-bubble, .cat-speech-bubble.noconn-speech {
                 position: static !important; transform: none; right: auto !important; top: auto !important;
                 margin-bottom: 15px; font-size: 1.2rem; padding: 8px 12px;
@@ -236,20 +227,26 @@
 <div class="container" style="width: 100%; max-width: 640px; position: relative;">
     <div class="status-container">
         <span id="online-dot" class="online-dot"></span> ESP32: <span id="status-text">離線</span>
+        <span id="queue-status"></span>
     </div>
 
     <div class="battle-arena">
         
-        <div id="disconnect-overlay">
+        <div id="disconnect-overlay" class="overlay-screen">
             <div style="display: flex; flex-direction: column; align-items: center; gap: 30px;">
-                <div class="wizard-cat" style="font-size: 3rem;">
- /\_/\ 
-( O_O )
- > - < 
-                </div>
+                <div class="wizard-cat" style="font-size: 3rem;"> /\_/\ \n( O_O )\n > - < </div>
                 <div style="background-color: var(--bg-color); border: calc(var(--pixel-size) * 0.8) solid var(--text-color); border-radius: calc(var(--pixel-size) * 2); padding: 20px 30px; font-size: 2rem; color: var(--text-color); position: relative;">
                     武器在別人手上喵，請稍待片刻...
                     <div style="position: absolute; left: 50%; top: calc(var(--pixel-size) * -2); width: calc(var(--pixel-size) * 3); height: calc(var(--pixel-size) * 3); background: var(--bg-color); border-left: calc(var(--pixel-size) * 0.8) solid var(--text-color); border-top: calc(var(--pixel-size) * 0.8) solid var(--text-color); transform: translateX(-50%) rotate(45deg);"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="queue-overlay" class="overlay-screen">
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 30px;">
+                <div class="wizard-cat" style="font-size: 3rem; color:#f1c40f;"> /\_/\ \n( -.- )\n > ~ < </div>
+                <div style="background-color: var(--bg-color); border: calc(var(--pixel-size) * 0.8) solid #f1c40f; border-radius: calc(var(--pixel-size) * 2); padding: 20px 30px; font-size: 2rem; color: #f1c40f; position: relative;">
+                    有人正在和貓咪戰鬥中喵！<br>請等待對方關閉網頁或離開...
                 </div>
             </div>
         </div>
@@ -258,15 +255,8 @@
             <div id="msg" style="display: none; color: var(--damage-color); font-size: 1.5rem; margin-bottom: 10px;">注意指針！按下攻擊</div>
             
             <div class="enemy-visual-container">
-                <div id="cat-canvas" class="wizard-cat">
- /\_/\ 
-( o.o )
- > ^ < 
-                </div>
-                
-                <div id="cat-speech-text" class="cat-speech-bubble">
-                    Meeeowgic!
-                </div>
+                <div id="cat-canvas" class="wizard-cat"> /\_/\ \n( o.o )\n > ^ < </div>
+                <div id="cat-speech-text" class="cat-speech-bubble">Meeeowgic!</div>
             </div>
 
             <div class="enemy-hp-container">
@@ -310,65 +300,77 @@
 
 <script>
     const ROOM_ID = "UNDER_CAT_BATTLE_999"; 
+    // 生成隨機 ID，避免網頁多開時互相踢下線
+    const myPlayerId = Math.random().toString(36).substring(2, 10);
+    const CLIENT_ID = "WebPlayer_" + myPlayerId; 
+
+    // MQTT Topics
     const topicBtn = `morsegame/${ROOM_ID}/button`;
     const topicStatus = `morsegame/${ROOM_ID}/status`;
-    
-    const CLIENT_ID = "Web_Player_" + ROOM_ID; 
+    const topicHostHeartbeat = `morsegame/${ROOM_ID}/host_heartbeat`; // 網頁互搶房主專用
+
     let client = new Paho.MQTT.Client("broker.emqx.io", 8084, CLIENT_ID);
 
-    client.onConnectionLost = function (responseObject) {
-        if (responseObject.errorCode !== 0) {
-            console.warn("斷線原因: " + responseObject.errorMessage);
-            document.getElementById("disconnect-overlay").style.display = "flex";
-            setOffline();
-        }
-    };
-
-    client.onMessageArrived = (m) => handleMqttMessage(m.destinationName, m.payloadString);
-    client.connect({ 
-        useSSL: true, 
-        onSuccess: () => {
-            client.subscribe(topicBtn); client.subscribe(topicStatus); setOffline();
-        }
-    });
-
+    // 遊戲與連線狀態
+    let isHost = false; 
+    let lastHostHeartbeat = 0;
     const battleState = { IDLE: 0, ATTACK_SWING: 1, MENU_ACTION: 2, ENEMY_DAMAGE_ANIM: 3 };
     let gameState = battleState.IDLE;
     let enemyMaxHp = 100, enemyHp = 100, lastPingTime = 0;
 
-    const CAT_ART = {
-        normal: " /\\_/\\ \n( o.o )\n > ^ < ",
-        hurt:   " /\\_/\\ \n( >.< )\n > - < ",
-        happy:  " /\\_/\\ \n( ^.^ )\n > w < ",
-        shock:  " /\\_/\\ \n( O_O )\n > - < ",
-        bye:    " /\\_/\\ \n( -.- )\n > ~ < "
+    const CAT_ART = { normal: " /\\_/\\ \n( o.o )\n > ^ < ", hurt:   " /\\_/\\ \n( >.< )\n > - < ", happy:  " /\\_/\\ \n( ^.^ )\n > w < ", shock:  " /\\_/\\ \n( O_O )\n > - < ", bye:    " /\\_/\\ \n( -.- )\n > ~ < " };
+    const CAT_SPEECH = { normal: "Meeeowgic!", hurt: "Ouch!", happy: "Purrr~♥", shock: "...", bye: "Bye bye~" };
+
+    client.onConnectionLost = function (responseObject) {
+        if (responseObject.errorCode !== 0) {
+            console.warn("斷線原因: " + responseObject.errorMessage);
+            setOffline();
+            // 如果自己是房主，斷線就放棄身分
+            if(isHost) becomeSpectator();
+        }
     };
 
-    const CAT_SPEECH = {
-        normal: "Meeeowgic!",
-        hurt:   "Ouch!",
-        happy:  "Purrr~♥",
-        shock:  "...",
-        bye:    "Bye bye~"
-    };
+    client.onMessageArrived = (m) => handleMqttMessage(m.destinationName, m.payloadString);
+    
+    client.connect({ 
+        useSSL: true, 
+        onSuccess: () => {
+            client.subscribe(topicBtn); 
+            client.subscribe(topicStatus); 
+            client.subscribe(topicHostHeartbeat); // 訂閱房主心跳
+            setOffline();
+            
+            // 剛連線時，給 2 秒鐘聽看看有沒有別人在玩
+            setTimeout(() => {
+                if (!isHost && lastHostHeartbeat === 0) {
+                    becomeHost();
+                }
+            }, 2000);
+        }
+    });
 
-    setInterval(() => {
-        if (Date.now() - lastPingTime > 5000 && lastPingTime !== 0) setOffline();
-    }, 1000);
-
-    function setOnline() { document.getElementById("online-dot").classList.add("active"); document.getElementById("status-text").innerText = "就緒"; }
-    function setOffline() { document.getElementById("online-dot").classList.remove("active"); document.getElementById("status-text").innerText = "離線中"; lastPingTime = 0; }
-
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    function playSound(freq, dur, type='square', volume=0.05) {
-        if(audioCtx.state === 'suspended') audioCtx.resume();
-        const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
-        o.type = type; o.frequency.value = freq; o.connect(g); g.connect(audioCtx.destination);
-        g.gain.setValueAtTime(volume, audioCtx.currentTime); o.start(); setTimeout(() => o.stop(), dur);
-    }
-
+    // 處理 MQTT 訊息
     function handleMqttMessage(topic, payload) {
-        if (topic === topicStatus) {
+        // 1. 處理網頁互斥 (排隊機制)
+        if (topic === topicHostHeartbeat) {
+            if (payload === "RELEASE") {
+                // 原房主離開了，立刻清空心跳時間，觸發接管
+                lastHostHeartbeat = 0; 
+                return;
+            }
+            if (payload !== myPlayerId) {
+                lastHostHeartbeat = Date.now();
+                if (isHost) {
+                    // 如果同時兩個人宣稱自己是房主，比 ID 大小決定誰讓位
+                    if (myPlayerId > payload) becomeSpectator();
+                } else {
+                    becomeSpectator();
+                }
+            }
+        }
+        
+        // 2. 處理 ESP32 狀態
+        else if (topic === topicStatus) {
             if (payload === "ONLINE" || payload === "PING") { 
                 lastPingTime = Date.now(); 
                 setOnline(); 
@@ -376,13 +378,84 @@
                 setOffline();
             }
         } 
+        
+        // 3. 處理按鈕攻擊 (只有當自己是房主時才接受硬體訊號)
         else if (topic === topicBtn && payload === "DOWN") {
+            if (!isHost) return; // 觀戰者無視按鈕
+
             if (gameState === battleState.IDLE) {
                 startAttackSequence();
             } else if (gameState === battleState.ATTACK_SWING) {
                 triggerPhysicalAttack();
             }
         }
+    }
+
+    // === 核心：房主輪替輪詢 ===
+    setInterval(() => {
+        if (isHost) {
+            // 如果我是房主，持續廣播「我還在玩」
+            if(client.isConnected()) {
+                let message = new Paho.MQTT.Message(myPlayerId);
+                message.destinationName = topicHostHeartbeat;
+                client.send(message);
+            }
+        } else {
+            // 如果我不是房主，檢查前一個房主是不是超過 4 秒沒發心跳
+            if (Date.now() - lastHostHeartbeat > 4000 && lastHostHeartbeat !== 0) {
+                becomeHost(); // 對方斷線或關網頁了，換我接手！
+            }
+        }
+
+        // ESP32 即時動態偵測 (縮短為 3 秒即視為斷線，反應更敏銳)
+        if (Date.now() - lastPingTime > 3000 && lastPingTime !== 0) setOffline();
+    }, 1500);
+
+    // === 當玩家主動關閉網頁時，立刻釋放控制權 ===
+    window.addEventListener('beforeunload', () => {
+        if (isHost && client.isConnected()) {
+            let message = new Paho.MQTT.Message("RELEASE");
+            message.destinationName = topicHostHeartbeat;
+            client.send(message);
+        }
+    });
+
+    // 成為房主
+    function becomeHost() {
+        isHost = true;
+        document.getElementById("queue-overlay").style.display = "none";
+        document.getElementById("queue-status").innerText = "[你是玩家]";
+        document.getElementById("queue-status").style.color = "#2ecc71";
+    }
+
+    // 成為觀戰排隊者
+    function becomeSpectator() {
+        if (isHost) resetToIdle(); // 若原本在玩被擠掉，重置狀態
+        isHost = false;
+        document.getElementById("queue-overlay").style.display = "flex";
+        document.getElementById("queue-status").innerText = "[排隊等待中]";
+        document.getElementById("queue-status").style.color = "#f1c40f";
+    }
+
+    // 狀態文字更新
+    function setOnline() { 
+        document.getElementById("online-dot").classList.add("active"); 
+        document.getElementById("status-text").innerText = "就緒"; 
+        document.getElementById("disconnect-overlay").style.display = "none"; // 隱藏斷線遮罩
+    }
+    function setOffline() { 
+        document.getElementById("online-dot").classList.remove("active"); 
+        document.getElementById("status-text").innerText = "離線尋找中..."; 
+        lastPingTime = 0; 
+        if (isHost) document.getElementById("disconnect-overlay").style.display = "flex"; // 只有房主顯示斷線遮罩
+    }
+
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playSound(freq, dur, type='square', volume=0.05) {
+        if(audioCtx.state === 'suspended') audioCtx.resume();
+        const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+        o.type = type; o.frequency.value = freq; o.connect(g); g.connect(audioCtx.destination);
+        g.gain.setValueAtTime(volume, audioCtx.currentTime); o.start(); setTimeout(() => o.stop(), dur);
     }
 
     function showDialog(text) {
@@ -398,11 +471,11 @@
         document.getElementById("cat-speech-text").innerText = CAT_SPEECH[artType];
     }
 
-    // === 1. FIGHT 系統 ===
+    // === 戰鬥系統 ===
     let attackPointerX = 0, attackPointerDir = 1, attackAnimationId = null;
 
     function startAttackSequence() {
-        if(gameState !== battleState.IDLE) return;
+        if(!isHost || gameState !== battleState.IDLE) return; // 鎖定：非房主無法點擊
 
         const isOnline = document.getElementById("online-dot").classList.contains("active");
 
@@ -410,7 +483,6 @@
             gameState = battleState.MENU_ACTION;
             updateCat("happy"); 
             
-            // ★ 修改：加上獨立定位的 V 型對話框 Class
             const speechBubble = document.getElementById("cat-speech-text");
             speechBubble.classList.add("noconn-speech");
             speechBubble.innerText = "嘿嘿，沒連上 ESP32 攻擊不到我喵！";
@@ -419,7 +491,7 @@
 
             setTimeout(() => {
                 updateCat("normal");
-                speechBubble.classList.remove("noconn-speech"); // 動畫結束後移除專屬定位
+                speechBubble.classList.remove("noconn-speech");
                 resetToIdle();
             }, 2500);
             return;
@@ -482,71 +554,71 @@
         }, 600); 
     }
     
-const DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1490915002364985415/IIiu_o6Y5k7sfA5vs3FbsXxyTk1clSHrBpeNSVv2FcmhTXARqtsc3npq3PXpIRmVTz96";
+    const DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1490915002364985415/IIiu_o6Y5k7sfA5vs3FbsXxyTk1clSHrBpeNSVv2FcmhTXARqtsc3npq3PXpIRmVTz96";
 
-function sendDiscordMessage(msg) {
-    if (!DISCORD_WEBHOOK_URL || DISCORD_WEBHOOK_URL.includes("你的_")) return;
-    const payload = { content: "【戰鬥結束】", embeds: [{ title: "野貓的話", description: msg, color: 15158332 }] };
-    fetch(DISCORD_WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }).catch(err => console.error("Discord 發送失敗:", err));
-}
-
-function createParticles(element) {
-    const rect = element.getBoundingClientRect();
-    const count = 30; 
-    for (let i = 0; i < count; i++) {
-        const particle = document.createElement('div');
-        particle.className = 'particle';
-        document.body.appendChild(particle);
-
-        const startX = rect.left + rect.width / 2;
-        const startY = rect.top + rect.height / 2;
-        const destinationX = (Math.random() - 0.5) * 200;
-        const destinationY = (Math.random() - 0.5) * 200;
-
-        particle.style.left = `${startX}px`;
-        particle.style.top = `${startY}px`;
-
-        const animation = particle.animate([
-            { transform: 'translate(0, 0)', opacity: 1 },
-            { transform: `translate(${destinationX}px, ${destinationY}px)`, opacity: 0 }
-        ], { duration: 800 + Math.random() * 400, easing: 'cubic-bezier(0, .9, .57, 1)', fill: 'forwards' });
-
-        animation.onfinish = () => particle.remove();
+    function sendDiscordMessage(msg) {
+        if (!DISCORD_WEBHOOK_URL || DISCORD_WEBHOOK_URL.includes("你的_")) return;
+        const payload = { content: "【戰鬥結束】", embeds: [{ title: "野貓的話", description: msg, color: 15158332 }] };
+        fetch(DISCORD_WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }).catch(err => console.error("Discord 發送失敗:", err));
     }
-}
 
-function handleAttackResolutionHit(dmg, accuracy) {
-    gameState = battleState.MENU_ACTION;
-    enemyHp -= dmg; if(enemyHp < 0) enemyHp = 0;
-    let hpPercent = (enemyHp / enemyMaxHp) * 100;
-    document.getElementById("enemy-hp-bar").style.width = hpPercent + "%";
-    
-    updateCat("hurt"); 
-    showDialog(`* 成功扣除 ${dmg} 傷害。<br>* 對野貓造成了有效打擊。`);
-    
-    setTimeout(() => {
-        if (enemyHp === 0) {
-            const catCanvas = document.getElementById("cat-canvas");
-            const speechBubble = document.getElementById("cat-speech-text");
-            
-            updateCat("shock");
-            createParticles(catCanvas);
-            catCanvas.classList.add("pixel-fade");
-            speechBubble.classList.add("pixel-fade");
+    function createParticles(element) {
+        const rect = element.getBoundingClientRect();
+        const count = 30; 
+        for (let i = 0; i < count; i++) {
+            const particle = document.createElement('div');
+            particle.className = 'particle';
+            document.body.appendChild(particle);
 
-            showDialog("* 野貓被擊敗了喵！喵嗚嗚嗚。");
-            sendDiscordMessage("喵嗚... 你真的下手了喵... 我會回來的喵...");
+            const startX = rect.left + rect.width / 2;
+            const startY = rect.top + rect.height / 2;
+            const destinationX = (Math.random() - 0.5) * 200;
+            const destinationY = (Math.random() - 0.5) * 200;
 
-            setTimeout(() => {
-                catCanvas.classList.remove("pixel-fade");
-                speechBubble.classList.remove("pixel-fade");
-                resetGame();
-            }, 4000); 
-        } else {
-            resetToIdle();
+            particle.style.left = `${startX}px`;
+            particle.style.top = `${startY}px`;
+
+            const animation = particle.animate([
+                { transform: 'translate(0, 0)', opacity: 1 },
+                { transform: `translate(${destinationX}px, ${destinationY}px)`, opacity: 0 }
+            ], { duration: 800 + Math.random() * 400, easing: 'cubic-bezier(0, .9, .57, 1)', fill: 'forwards' });
+
+            animation.onfinish = () => particle.remove();
         }
-    }, 2000);
-}
+    }
+
+    function handleAttackResolutionHit(dmg, accuracy) {
+        gameState = battleState.MENU_ACTION;
+        enemyHp -= dmg; if(enemyHp < 0) enemyHp = 0;
+        let hpPercent = (enemyHp / enemyMaxHp) * 100;
+        document.getElementById("enemy-hp-bar").style.width = hpPercent + "%";
+        
+        updateCat("hurt"); 
+        showDialog(`* 成功扣除 ${dmg} 傷害。<br>* 對野貓造成了有效打擊。`);
+        
+        setTimeout(() => {
+            if (enemyHp === 0) {
+                const catCanvas = document.getElementById("cat-canvas");
+                const speechBubble = document.getElementById("cat-speech-text");
+                
+                updateCat("shock");
+                createParticles(catCanvas);
+                catCanvas.classList.add("pixel-fade");
+                speechBubble.classList.add("pixel-fade");
+
+                showDialog("* 野貓被擊敗了喵！喵嗚嗚嗚。");
+                sendDiscordMessage("喵嗚... 你真的下手了喵... 我會回來的喵...");
+
+                setTimeout(() => {
+                    catCanvas.classList.remove("pixel-fade");
+                    speechBubble.classList.remove("pixel-fade");
+                    resetGame();
+                }, 4000); 
+            } else {
+                resetToIdle();
+            }
+        }, 2000);
+    }
 
     function handleAttackResolutionMiss() {
         gameState = battleState.MENU_ACTION;
@@ -557,7 +629,7 @@ function handleAttackResolutionHit(dmg, accuracy) {
     }
 
     function openActMenu() {
-        if(gameState !== battleState.IDLE) return;
+        if(!isHost || gameState !== battleState.IDLE) return;
         document.getElementById("btn-fight").classList.remove("active");
         gameState = battleState.MENU_ACTION;
         document.getElementById("box-text-content").style.display = "none";
@@ -579,7 +651,7 @@ function handleAttackResolutionHit(dmg, accuracy) {
     }
 
     function executeFlee() {
-        if(gameState !== battleState.IDLE) return;
+        if(!isHost || gameState !== battleState.IDLE) return;
         document.getElementById("btn-fight").classList.remove("active");
         gameState = battleState.MENU_ACTION;
         playSound(800, 100);
