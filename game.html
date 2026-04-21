@@ -31,7 +31,6 @@
             overflow-x: hidden;
         }
         
-        /* 掃描線效果 */
         .crt-effect { 
             position: fixed; top: 0; left: 0; right: 0; bottom: 0; 
             background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06)); 
@@ -51,26 +50,22 @@
             flex-direction: column; 
             padding: 20px; 
             gap: 15px; 
-            overflow: hidden; /* 防止覆蓋層突出版面 */
+            overflow: hidden;
         }
 
-        /* === 斷線警告覆蓋層 (預設隱藏) === */
+        /* === 斷線警告覆蓋層 (無搶奪按鈕版) === */
         #disconnect-overlay {
             display: none; 
             position: absolute; 
             top: 0; left: 0; 
             width: 100%; height: 100%; 
-            background: rgba(0, 0, 0, 0.9); 
+            background: rgba(0, 0, 0, 0.95); 
             z-index: 999; 
             flex-direction: column; 
             justify-content: center; 
             align-items: center; 
-            text-align: center; 
-            padding: 20px;
-            box-sizing: border-box;
         }
 
-        /* === 敵方區域 === */
         .enemy-area { 
             flex: 1; 
             display: flex; 
@@ -118,6 +113,7 @@
             box-shadow: 0 0 10px rgba(255,255,255,0.1);
         }
 
+        /* 預設的 < 型左側尖角 */
         .cat-speech-bubble::after {
             content: "";
             position: absolute;
@@ -129,6 +125,22 @@
             border-left: calc(var(--pixel-size) * 0.8) solid var(--text-color);
             border-bottom: calc(var(--pixel-size) * 0.8) solid var(--text-color);
             transform: rotate(45deg);
+        }
+
+        /* ★ 新增：斷線嘲諷專用對話框 (指定座標與 V 型下尖角) */
+        .cat-speech-bubble.noconn-speech {
+            top: -19px;
+            right: -161px;
+        }
+        .cat-speech-bubble.noconn-speech::after {
+            left: 30px; /* 將尖角移到對話框下方左側 */
+            top: 100%;  /* 貼齊下邊緣 */
+            margin-top: calc(var(--pixel-size) * -1); /* 微微上移蓋住邊框 */
+            border-left: none; /* 取消左邊框 */
+            border-top: none;  /* 取消上邊框 */
+            border-right: calc(var(--pixel-size) * 0.8) solid var(--text-color);
+            border-bottom: calc(var(--pixel-size) * 0.8) solid var(--text-color);
+            transform: rotate(45deg); /* 產生朝下的 V 型 */
         }
 
         @keyframes damageShake {
@@ -144,41 +156,19 @@
             90% { transform: translateX(2px); }
             100% { transform: translateX(0px); }
         }
-        .wizard-cat.shake {
-            animation: damageShake 0.6s linear;
-            animation-iteration-count: 1;
-        }
+        .wizard-cat.shake { animation: damageShake 0.6s linear; animation-iteration-count: 1; }
 
-        .particle {
-            position: absolute;
-            background-color: var(--text-color);
-            width: 4px;
-            height: 4px;
-            pointer-events: none;
-            z-index: 100;
-        }
-        
-        .pixel-fade {
-            transition: opacity 0.5s ease-out;
-            opacity: 0 !important;
-        }
+        .particle { position: absolute; background-color: var(--text-color); width: 4px; height: 4px; pointer-events: none; z-index: 100; }
+        .pixel-fade { transition: opacity 0.5s ease-out; opacity: 0 !important; }
 
         .enemy-hp-container { display: flex; align-items: center; margin-top: 15px; gap: 15px; font-size: 1.5rem; }
         .enemy-hp-bar-outer { width: 150px; height: 15px; background-color: var(--damage-color); border: 2px solid #fff;}
         .enemy-hp-bar-inner { width: 100%; height: 100%; background-color: var(--hp-color); transition: width 0.4s ease-out; }
 
         .battle-box { 
-            width: 100%; 
-            min-height: 150px; 
-            border: calc(var(--pixel-size)) solid var(--text-color); 
-            box-sizing: border-box; 
-            background-color: var(--bg-color); 
-            padding: 20px; 
-            font-size: 1.8rem; 
-            text-align: left; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
+            width: 100%; min-height: 150px; border: calc(var(--pixel-size)) solid var(--text-color); 
+            box-sizing: border-box; background-color: var(--bg-color); padding: 20px; 
+            font-size: 1.8rem; text-align: left; display: flex; align-items: center; justify-content: center; 
         }
         .box-text { width: 100%; line-height: 1.4; }
 
@@ -222,11 +212,14 @@
             .enemy-area { font-size: 1.5rem; min-height: 180px; }
             .enemy-visual-container { flex-direction: column-reverse; padding-top: 0; }
             .wizard-cat { font-size: 1.5rem; letter-spacing: -1px; margin-top: 10px;}
-            .cat-speech-bubble {
-                position: static; transform: none; right: auto; top: auto;
+            
+            /* 手機版強制覆寫對話框設定，避免跑版 */
+            .cat-speech-bubble, .cat-speech-bubble.noconn-speech {
+                position: static !important; transform: none; right: auto !important; top: auto !important;
                 margin-bottom: 15px; font-size: 1.2rem; padding: 8px 12px;
             }
-            .cat-speech-bubble::after { display: none; }
+            .cat-speech-bubble::after, .cat-speech-bubble.noconn-speech::after { display: none !important; }
+            
             .battle-box { font-size: 1.4rem; min-height: 120px; padding: 15px; }
             .player-ui { font-size: 1.2rem; }
             .action-btn { flex: 1 1 100%; font-size: 1.5rem; padding: 12px 0; margin-bottom: 5px; }
@@ -248,14 +241,17 @@
     <div class="battle-arena">
         
         <div id="disconnect-overlay">
-            <h1 style="color: var(--damage-color); font-size: 2.5rem; margin-bottom: 10px;">⚠️ 連線被搶走啦！</h1>
-            <p style="font-size: 1.5rem; line-height: 1.5; margin-bottom: 25px;">
-                已經在另一台裝置上開啟了這個網頁。<br>
-                為了避免干擾，此畫面已暫停連線。
-            </p>
-            <button class="action-btn active" style="width: auto; padding: 15px 30px;" onclick="location.reload()">
-                重新整理以搶回控制權
-            </button>
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 30px;">
+                <div class="wizard-cat" style="font-size: 3rem;">
+ /\_/\ 
+( O_O )
+ > - < 
+                </div>
+                <div style="background-color: var(--bg-color); border: calc(var(--pixel-size) * 0.8) solid var(--text-color); border-radius: calc(var(--pixel-size) * 2); padding: 20px 30px; font-size: 2rem; color: var(--text-color); position: relative;">
+                    武器在別人手上喵，請稍待片刻...
+                    <div style="position: absolute; left: 50%; top: calc(var(--pixel-size) * -2); width: calc(var(--pixel-size) * 3); height: calc(var(--pixel-size) * 3); background: var(--bg-color); border-left: calc(var(--pixel-size) * 0.8) solid var(--text-color); border-top: calc(var(--pixel-size) * 0.8) solid var(--text-color); transform: translateX(-50%) rotate(45deg);"></div>
+                </div>
+            </div>
         </div>
 
         <div class="enemy-area">
@@ -313,17 +309,13 @@
 </div>
 
 <script>
-    // === 設定與 MQTT ===
     const ROOM_ID = "UNDER_CAT_BATTLE_999"; 
     const topicBtn = `morsegame/${ROOM_ID}/button`;
     const topicStatus = `morsegame/${ROOM_ID}/status`;
     
-    // ★ 關鍵修改：取消亂數 Client ID，強制綁定單一身分
-    // 如果另一個裝置也用相同的 ID 連線，伺服器會自動踢掉舊的連線！
     const CLIENT_ID = "Web_Player_" + ROOM_ID; 
     let client = new Paho.MQTT.Client("broker.emqx.io", 8084, CLIENT_ID);
 
-    // ★ 關鍵新增：當被伺服器踢下線時（代表有人在別處開啟），顯示覆蓋層
     client.onConnectionLost = function (responseObject) {
         if (responseObject.errorCode !== 0) {
             console.warn("斷線原因: " + responseObject.errorMessage);
@@ -417,11 +409,17 @@
         if (!isOnline) {
             gameState = battleState.MENU_ACTION;
             updateCat("happy"); 
-            document.getElementById("cat-speech-text").innerText = "嘿嘿，沒連上 ESP32 攻擊不到我喵！";
+            
+            // ★ 修改：加上獨立定位的 V 型對話框 Class
+            const speechBubble = document.getElementById("cat-speech-text");
+            speechBubble.classList.add("noconn-speech");
+            speechBubble.innerText = "嘿嘿，沒連上 ESP32 攻擊不到我喵！";
+            
             showDialog("* 你揮動了武器，但因為 ESP32 沒連線，攻擊完全無效！<br>* 野貓露出了得意的笑容。喵。");
 
             setTimeout(() => {
                 updateCat("normal");
+                speechBubble.classList.remove("noconn-speech"); // 動畫結束後移除專屬定位
                 resetToIdle();
             }, 2500);
             return;
@@ -484,35 +482,17 @@
         }, 600); 
     }
     
-// --- 1. Discord Webhook 設定 ---
 const DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1490915002364985415/IIiu_o6Y5k7sfA5vs3FbsXxyTk1clSHrBpeNSVv2FcmhTXARqtsc3npq3PXpIRmVTz96";
 
 function sendDiscordMessage(msg) {
-    if (!DISCORD_WEBHOOK_URL || DISCORD_WEBHOOK_URL.includes("你的_")) {
-        console.warn("Discord Webhook URL 未設定");
-        return;
-    }
-
-    const payload = {
-        content: "【戰鬥結束】",
-        embeds: [{
-            title: "野貓的話",
-            description: msg,
-            color: 15158332 // 紅色
-        }]
-    };
-
-    fetch(DISCORD_WEBHOOK_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-    }).catch(err => console.error("Discord 發送失敗:", err));
+    if (!DISCORD_WEBHOOK_URL || DISCORD_WEBHOOK_URL.includes("你的_")) return;
+    const payload = { content: "【戰鬥結束】", embeds: [{ title: "野貓的話", description: msg, color: 15158332 }] };
+    fetch(DISCORD_WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }).catch(err => console.error("Discord 發送失敗:", err));
 }
 
 function createParticles(element) {
     const rect = element.getBoundingClientRect();
     const count = 30; 
-    
     for (let i = 0; i < count; i++) {
         const particle = document.createElement('div');
         particle.className = 'particle';
@@ -520,9 +500,6 @@ function createParticles(element) {
 
         const startX = rect.left + rect.width / 2;
         const startY = rect.top + rect.height / 2;
-
-        const angle = Math.random() * Math.PI * 2;
-        const velocity = Math.random() * 5 + 2;
         const destinationX = (Math.random() - 0.5) * 200;
         const destinationY = (Math.random() - 0.5) * 200;
 
@@ -532,11 +509,7 @@ function createParticles(element) {
         const animation = particle.animate([
             { transform: 'translate(0, 0)', opacity: 1 },
             { transform: `translate(${destinationX}px, ${destinationY}px)`, opacity: 0 }
-        ], {
-            duration: 800 + Math.random() * 400,
-            easing: 'cubic-bezier(0, .9, .57, 1)',
-            fill: 'forwards'
-        });
+        ], { duration: 800 + Math.random() * 400, easing: 'cubic-bezier(0, .9, .57, 1)', fill: 'forwards' });
 
         animation.onfinish = () => particle.remove();
     }
@@ -562,7 +535,6 @@ function handleAttackResolutionHit(dmg, accuracy) {
             speechBubble.classList.add("pixel-fade");
 
             showDialog("* 野貓被擊敗了喵！喵嗚嗚嗚。");
-            
             sendDiscordMessage("喵嗚... 你真的下手了喵... 我會回來的喵...");
 
             setTimeout(() => {
@@ -584,7 +556,6 @@ function handleAttackResolutionHit(dmg, accuracy) {
         setTimeout(resetToIdle, 1500);
     }
 
-    // === 2. ACT / MERCY 系統 ===
     function openActMenu() {
         if(gameState !== battleState.IDLE) return;
         document.getElementById("btn-fight").classList.remove("active");
