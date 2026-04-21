@@ -171,7 +171,7 @@
         #attack-bar-container { display: none; width: 90%; height: 40px; position: relative; margin: 20px 0; }
         .attack-bar { width: 100%; height: 100%; background-color: var(--damage-color); border: calc(var(--pixel-size)) solid var(--text-color); box-sizing: border-box; position: relative; }
         .green-zone { width: 30%; height: 100%; background-color: var(--hp-color); position: absolute; left: 50%; transform: translateX(-50%); }
-        .pointer { width: calc(var(--pixel-size) * 1.5); height: calc(100% + calc(var(--pixel-size) * 2)); background-color: var(--text-color); position: absolute; left: 0%; top: calc(var(--pixel-size) * -1); transition: left 0.1s linear; }
+        .pointer { width: calc(var(--pixel-size) * 1.5); height: calc(100% + calc(var(--pixel-size) * 2)); background-color: var(--text-color); position: absolute; left: 0%; top: calc(var(--pixel-size) * -1); z-index: 5; }
         .pointer.stopped { box-shadow: 0 0 calc(var(--pixel-size) * 2) var(--text-color); background-color: var(--text-color); }
 
         .player-ui { margin-top: 10px; display: flex; flex-direction: column; align-items: flex-start; font-size: 1.5rem; }
@@ -560,7 +560,7 @@
         if (gameState !== battleState.ATTACK_SWING) return;
         cancelAnimationFrame(attackAnimationId);
 
-        const lagOffset = 4; 
+        const lagOffset = 1.5; 
         attackPointerX -= lagOffset * attackPointerDir;
 
         if (attackPointerX < 0) attackPointerX = 0;
@@ -570,8 +570,10 @@
         document.getElementById("attack-pointer").classList.add("stopped");
         playSound(1200, 50, 'square', 0.1);
 
-        const greenMin = 42.5, greenMax = 66.5; 
+        const greenMin = 35, greenMax = 65; 
         const isHit = attackPointerX >= greenMin && attackPointerX <= greenMax;
+        
+        // 根據距離中心的精準度計算傷害 (50% 為中心)
         const dmg = isHit ? Math.round(40 - Math.abs(50 - attackPointerX)) : 0;
         const accuracy = Math.round(attackPointerX);
 
