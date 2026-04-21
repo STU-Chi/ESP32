@@ -385,6 +385,10 @@
             if (payload === "ONLINE" || payload === "PING") { 
                 lastPingTime = Date.now(); 
                 setOnline(); 
+                // 額外保險：如果 ESP32 主動說 ONLINE，且目前沒人搶房
+                if(!isHost && (Date.now() - lastHostHeartbeat > 3000)) {
+                    becomeHost();
+                }
             } else if (payload === "OFFLINE") {
                 setOffline();
             }
@@ -452,7 +456,18 @@
     function setOnline() { 
         document.getElementById("online-dot").classList.add("active"); 
         document.getElementById("status-text").innerText = "就緒"; 
-        document.getElementById("disconnect-overlay").style.display = "none"; // 隱藏斷線遮罩
+        document.getElementById("disconnect-overlay").style.display = "none"; 
+
+        // === 新增以下邏輯 ===
+        // 如果目前不是房主，且 ESP32 已經上線
+        // 我們檢查：是否很久沒收到別人的心跳了？或是心跳根本是 0
+        if (!isHost) {
+            const now = Date.now();
+            if (lastHostHeartbeat === 0 || (now - lastHostHeartbeat > 4000)) {
+                console.log("偵測到 ESP32 已就緒且無競爭房主，自動接管控制權喵！");
+                becomeHost();
+            }
+        }
     }
     function setOffline() { 
         document.getElementById("online-dot").classList.remove("active"); 
