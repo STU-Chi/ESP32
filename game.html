@@ -99,7 +99,7 @@
         .cat-speech-bubble {
             position: absolute;
             top: 50px; 
-            right: -141px; 
+            left: calc(100% + 20px);
             background-color: var(--bg-color);
             border: calc(var(--pixel-size) * 0.8) solid var(--text-color);
             border-radius: calc(var(--pixel-size) * 2);
@@ -128,7 +128,7 @@
 
         .cat-speech-bubble.noconn-speech {
             top: -19px;
-            right: -161px;
+            left: calc(100% + 40px);
         }
         .cat-speech-bubble.noconn-speech::after {
             left: 30px; 
@@ -206,7 +206,8 @@
             .wizard-cat { font-size: 1.5rem; letter-spacing: -1px; margin-top: 10px;}
             
             .cat-speech-bubble, .cat-speech-bubble.noconn-speech {
-                position: static !important; transform: none; right: auto !important; top: auto !important;
+                position: static !important; transform: none; right: auto !important; top: auto !important; 
+                left: auto !important; /* 新增這一項 */
                 margin-bottom: 15px; font-size: 1.2rem; padding: 8px 12px;
             }
             .cat-speech-bubble::after, .cat-speech-bubble.noconn-speech::after { display: none !important; }
@@ -263,8 +264,7 @@
             <div id="msg" style="display: none; color: var(--damage-color); font-size: 1.5rem; margin-bottom: -24px;">注意指針！按下攻擊</div>
             
             <div class="enemy-visual-container">
-                <div id="cat-canvas" class="wizard-cat"> 
- /\_/\ 
+                <div id="cat-canvas" class="wizard-cat">  /\_/\ 
 ( o.o )
  > ^ < 
                 </div>
