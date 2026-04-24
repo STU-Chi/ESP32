@@ -1,13 +1,13 @@
 {
-  "name": "彩色大挑戰",
-  "short_name": "彩色按鈕",
+  "name": "超音波數據偵測",
+  "short_name": "超音波偵測",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#f0f8ff",
   "theme_color": "#3498db",
   "icons": [
     {
-      "src": "https://cdn-icons-png.flaticon.com/512/2071/2071669.png",
+      "src": "https://cdn-icons-png.flaticon.com/512/2041/2041643.png",
       "sizes": "512x512",
       "type": "image/png"
     }
