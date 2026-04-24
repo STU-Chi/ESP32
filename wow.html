@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 即時感測器儀表板</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f4f9; }
+        .dashboard { display: flex; flex-wrap: wrap; gap: 20px; margin-bottom: 20px; }
+        .chart-box { background: white; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); padding: 10px; flex: 1; min-width: 300px; height: 350px; }
+        
+        /* 淺灰色資料方框 (類似序列監視窗) */
+        #serial-monitor {
+            background-color: #e0e0e0;
+            color: #333;
+            font-family: 'Courier New', Courier, monospace;
+            height: 250px;
+            overflow-y: auto;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .log-entry { margin: 0 0 5px 0; border-bottom: 1px dashed #ccc; padding-bottom: 2px;}
+    </style>
+</head>
+<body>
+
+    <h2>ESP32 超音波感測即時監控</h2>
+
+    <div class="dashboard">
+        <div id="gaugeChart" class="chart-box"></div>
+        <div id="lineChart" class="chart-box"></div>
+    </div>
+
+    <h3>即時數據接收終端</h3>
+    <div id="serial-monitor"></div>
+
+    <script>
+        // === 1. 初始化 ECharts ===
+        const gaugeChart = echarts.init(document.getElementById('gaugeChart'));
+        const lineChart = echarts.init(document.getElementById('lineChart'));
+
+        // 指針圖設定
+        const gaugeOption = {
+            series: [{
+                type: 'gauge',
+                center: ['50%', '60%'],
+                startAngle: 200, endAngle: -20,
+                min: 0, max: 400, // 超音波最大約 400cm
+                splitNumber: 10,
+                itemStyle: { color: '#58D9F9' },
+                progress: { show: true, width: 30 },
+                pointer: { itemStyle: { color: 'auto' } },
+                axisLine: { lineStyle: { width: 30 } },
+                axisTick: { distance: -45, splitNumber: 5, lineStyle: { width: 2, color: '#999' } },
+                splitLine: { distance: -52, length: 14, lineStyle: { width: 3, color: '#999' } },
+                axisLabel: { distance: -20, color: '#999', fontSize: 14 },
+                anchor: { show: false },
+                title: { show: false },
+                detail: { valueAnimation: true, width: '60%', lineHeight: 40, borderRadius: 8, offsetCenter: [0, '-15%'], fontSize: 30, fontWeight: 'bolder', formatter: '{value} cm', color: 'inherit' },
+                data: [{ value: 0 }]
+            }]
+        };
+
+        // 折線圖 (心率圖) 設定
+        let dataArray = Array(50).fill(0); // 預設顯示 50 筆資料
+        const lineOption = {
+            tooltip: { trigger: 'axis' },
+            grid: { left: '10%', right: '5%', bottom: '10%', top: '10%' },
+            xAxis: { type: 'category', boundaryGap: false, data: Array.from({length: 50}, (_, i) => i) },
+            yAxis: { type: 'value', min: 0, max: 400 },
+            series: [{
+                name: '距離',
+                type: 'line',
+                smooth: true,
+                symbol: 'none',
+                areaStyle: { color: 'rgba(255, 99, 132, 0.2)' },
+                lineStyle: { color: '#FF6384', width: 2 },
+                data: dataArray
+            }]
+        };
+
+        gaugeChart.setOption(gaugeOption);
+        lineChart.setOption(lineOption);
+
+        // === 2. MQTT 連線設定 ===
+        const mqttTopic = "my_esp32/sensor/distance_22115103"; // 必須與 ESP32 程式碼一致
+        // 注意：網頁端必須使用 wss:// (Secure WebSockets) 與 8084 port
+        const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
+        const serialMonitor = document.getElementById('serial-monitor');
+
+        function appendLog(message) {
+            const timeString = new Date().toLocaleTimeString();
+            const logElement = document.createElement('div');
+            logElement.className = 'log-entry';
+            logElement.innerHTML = `<strong>[${timeString}]</strong> 收到數據: ${message} cm`;
+            serialMonitor.appendChild(logElement);
+            // 讓視窗自動捲動到最底部
+            serialMonitor.scrollTop = serialMonitor.scrollHeight;
+        }
+
+        client.on('connect', function () {
+            appendLog('--- 系統：成功連接到 MQTT Broker ---');
+            client.subscribe(mqttTopic, function (err) {
+                if (!err) {
+                    appendLog('--- 系統：已訂閱主題 ' + mqttTopic + ' ---');
+                }
+            });
+        });
+
+        client.on('message', function (topic, message) {
+            // 收到 ESP32 傳來的數據
+            const distanceValue = parseFloat(message.toString());
+            
+            // 更新下方監視窗
+            appendLog(distanceValue);
+
+            // 更新左側指針
+            gaugeChart.setOption({
+                series: [{ data: [{ value: distanceValue }] }]
+            });
+
+            // 更新右側折線圖 (資料往左推移)
+            dataArray.push(distanceValue);
+            dataArray.shift();
+            lineChart.setOption({
+                series: [{ data: dataArray }]
+            });
+        });
+
+        // 確保視窗縮放時圖表自適應
+        window.addEventListener('resize', () => {
+            gaugeChart.resize();
+            lineChart.resize();
+        });
+    </script>
+</body>
+</html>
