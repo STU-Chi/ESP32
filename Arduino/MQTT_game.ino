@@ -3,8 +3,8 @@
 #include <PubSubClient.h>
 
 // === 設定區 ===
-const char* ssid = "123";
-const char* password = "22115103";
+const char* ssid = "YOUR_WIFI_SSID";
+const char* password = "YOUR_WIFI_SSID";
 const char* mqtt_server = "broker.emqx.io";
 const int mqtt_port = 8883;
 
